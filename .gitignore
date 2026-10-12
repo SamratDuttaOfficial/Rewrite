@@ -1,8 +1,33 @@
+# Python
 .venv/
-models/
-settings.json
+venv/
 __pycache__/
-*.pyc
-*.part
+*.py[cod]
+*.egg-info/
+
+# Build output
 build/
 dist/
+
+# App data when running from source
+models/
+settings.json
+*.part
+
+# LaTeX by-products
+*.aux
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.log
+
+# Editors, OS files, local notes and secrets
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+.env
+AGENTS.md
