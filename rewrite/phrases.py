@@ -1,0 +1,324 @@
+"""Curated phrase book: multi-word expressions and equivalent rewordings.
+
+Entries are lowercase. Alternatives are ranked by the context model when it is
+available; in Lite mode they are shown in the order listed here.
+"""
+import re
+
+_RAW = """
+in order to | to ; so as to
+so as to | to ; in order to
+due to the fact that | because ; since ; as
+owing to the fact that | because ; since
+in spite of the fact that | although ; even though ; despite the fact that
+despite the fact that | although ; even though ; though
+at this point in time | now ; currently ; at present
+at the present time | now ; currently ; at present
+at present | now ; currently ; at the moment
+a large number of | many ; numerous ; a great many
+a great number of | many ; numerous
+a small number of | a few ; several
+a number of | several ; some ; various
+a majority of | most ; the bulk of
+the majority of | most ; the bulk of ; most of
+a great deal of | much ; a lot of ; considerable
+a significant amount of | a considerable amount of ; a substantial amount of ; a lot of ; much
+a wide range of | a variety of ; a broad range of ; many different ; diverse
+a wide variety of | a broad range of ; many kinds of ; diverse
+a variety of | various ; a range of ; different
+an increasing number of | a growing number of ; more and more
+a lot of | plenty of ; many ; much ; a great deal of
+lots of | plenty of ; many ; a great deal of
+has the ability to | can ; is able to
+have the ability to | can ; are able to
+is able to | can ; is capable of
+are able to | can ; are capable of
+was able to | could ; managed to ; succeeded in
+were able to | could ; managed to
+is capable of | can ; is able to
+in the event that | if ; should ; in case
+with regard to | regarding ; concerning ; about
+with respect to | regarding ; concerning ; in relation to
+in regard to | regarding ; concerning
+in relation to | regarding ; concerning ; with respect to
+in terms of | regarding ; in relation to ; as for
+it is important to note that | notably ; importantly ; note that
+it should be noted that | note that ; notably ; it is worth noting that
+it is worth noting that | notably ; it should be noted that
+for the purpose of | to ; for ; in order to
+in close proximity to | near ; close to
+on a daily basis | daily ; every day
+on a regular basis | regularly ; routinely
+prior to | before ; ahead of
+subsequent to | after ; following
+in addition | also ; furthermore ; moreover ; additionally
+in addition to | besides ; as well as ; apart from ; along with
+as well as | and ; along with ; together with
+along with | together with ; as well as ; alongside
+plays an important role in | is important for ; is central to ; contributes significantly to ; is key to
+play an important role in | are important for ; are central to ; contribute significantly to
+plays a key role in | is central to ; is crucial for ; is instrumental in
+play a key role in | are central to ; are crucial for ; are instrumental in
+plays a crucial role in | is crucial for ; is essential to ; is vital to
+an important role | a key role ; a significant role ; a vital role ; a major role
+a key role | a central role ; a vital role ; a major role
+in recent years | recently ; lately ; over the past few years ; in the last few years
+over the past few years | in recent years ; recently ; lately
+on the other hand | conversely ; by contrast ; alternatively ; however
+by contrast | conversely ; on the other hand ; in contrast
+in contrast | by contrast ; conversely ; on the other hand
+in contrast to | unlike ; as opposed to ; compared with
+as opposed to | rather than ; instead of ; unlike
+as a result | consequently ; therefore ; as a consequence ; thus
+as a consequence | consequently ; as a result ; therefore
+for example | for instance ; e.g. ; to illustrate
+for instance | for example ; e.g. ; say
+in other words | that is ; put differently ; namely ; in short
+that is to say | in other words ; namely ; that is
+take into account | consider ; factor in ; allow for ; take into consideration
+taking into account | considering ; factoring in ; given
+take into consideration | consider ; take into account ; factor in
+carry out | conduct ; perform ; undertake ; execute
+carried out | conducted ; performed ; undertaken ; executed
+carrying out | conducting ; performing ; undertaking
+focus on | concentrate on ; center on ; zero in on
+focuses on | concentrates on ; centers on
+focused on | concentrated on ; centered on
+look into | investigate ; examine ; explore
+find out | discover ; determine ; learn ; establish
+found out | discovered ; learned ; determined
+point out | note ; observe ; indicate ; highlight
+pointed out | noted ; observed ; indicated
+set up | establish ; arrange ; create
+come up with | devise ; develop ; propose ; think of
+came up with | devised ; developed ; proposed
+deal with | handle ; address ; tackle ; cope with
+deals with | handles ; addresses ; tackles
+dealing with | handling ; addressing ; tackling
+lead to | result in ; cause ; bring about ; give rise to
+leads to | results in ; causes ; brings about
+led to | resulted in ; caused ; brought about
+give rise to | cause ; produce ; lead to ; bring about
+gives rise to | causes ; produces ; leads to
+make use of | use ; employ ; utilize ; draw on
+makes use of | uses ; employs ; utilizes
+put forward | propose ; suggest ; advance ; present
+in the context of | in ; within ; in the setting of
+in light of | given ; considering ; because of ; in view of
+in view of | given ; considering ; in light of
+on the basis of | based on ; from ; on the grounds of
+based on | on the basis of ; drawing on ; grounded in
+in the case of | for ; regarding ; with
+it is clear that | clearly ; evidently ; obviously
+it is evident that | clearly ; evidently ; it is clear that
+there is no doubt that | undoubtedly ; certainly ; without doubt
+at the same time | simultaneously ; meanwhile ; concurrently
+in the near future | soon ; shortly ; before long
+in the past | previously ; formerly ; in earlier times
+first and foremost | first ; above all ; primarily
+each and every | every ; each
+the fact that | that
+owing to | because of ; due to ; on account of
+due to | because of ; owing to ; on account of ; as a result of
+because of | due to ; owing to ; on account of ; as a result of
+by means of | by ; through ; using ; via
+in accordance with | following ; in line with ; according to ; per
+according to | as stated by ; based on ; in line with ; per
+with the exception of | except ; except for ; apart from ; other than
+until such time as | until
+in excess of | more than ; over ; exceeding
+it is possible that | possibly ; perhaps ; it may be that
+it seems that | apparently ; seemingly ; it appears that
+it appears that | apparently ; it seems that ; seemingly
+in summary | in short ; to summarize ; overall ; in brief
+in conclusion | to conclude ; finally ; in closing ; in sum
+to sum up | in short ; overall ; to summarize
+as mentioned above | as noted above ; as stated earlier ; as discussed
+as mentioned earlier | as noted earlier ; as stated before ; as previously mentioned
+as previously mentioned | as noted earlier ; as mentioned before
+on the contrary | rather ; in fact ; conversely
+in particular | especially ; notably ; specifically ; particularly
+such as | including ; like ; for example
+in general | generally ; overall ; broadly ; as a rule
+generally speaking | in general ; broadly ; on the whole
+kind of | somewhat ; rather ; fairly
+sort of | somewhat ; rather ; fairly
+in fact | indeed ; actually ; in reality
+as a matter of fact | in fact ; actually ; indeed
+all of a sudden | suddenly ; abruptly
+at first | initially ; originally ; in the beginning
+at last | finally ; eventually ; in the end
+in the end | eventually ; ultimately ; finally
+as soon as possible | promptly ; quickly ; at the earliest opportunity
+make sure | ensure ; confirm ; check
+makes sure | ensures ; confirms
+make sure that | ensure that ; confirm that
+get rid of | remove ; eliminate ; discard
+keep in mind | remember ; bear in mind ; note
+bear in mind | remember ; keep in mind ; note
+take part in | participate in ; join ; be involved in
+took part in | participated in ; joined
+take place | occur ; happen ; be held
+takes place | occurs ; happens
+took place | occurred ; happened
+put up with | tolerate ; endure ; bear
+look forward to | anticipate ; await ; eagerly await
+turn out | prove ; emerge ; end up
+turned out | proved ; emerged ; ended up
+bring up | raise ; mention ; introduce
+figure out | determine ; work out ; understand ; solve
+go through | undergo ; experience ; review ; examine
+went through | underwent ; experienced ; reviewed
+come across | encounter ; find ; happen upon
+came across | encountered ; found
+rely on | depend on ; count on ; draw on
+relies on | depends on ; counts on
+has been shown to | has proven to ; is known to ; has been found to
+have been shown to | have proven to ; are known to ; have been found to
+in this paper | here ; in this work ; in this study ; in this article
+in this study | here ; in this work ; in this paper
+in this work | here ; in this paper ; in this study
+we propose | we introduce ; we present ; we put forward
+state of the art | cutting edge ; forefront ; leading edge
+state-of-the-art | cutting-edge ; leading ; best-performing ; most advanced
+to a large extent | largely ; mostly ; to a great degree
+to some extent | partly ; somewhat ; to a degree
+more and more | increasingly ; a growing number of
+over and over | repeatedly ; again and again
+is in need of | needs ; requires
+is dependent on | depends on ; relies on
+are dependent on | depend on ; rely on
+is indicative of | indicates ; suggests ; points to
+has an impact on | affects ; influences ; has an effect on
+have an impact on | affect ; influence ; have an effect on
+had an impact on | affected ; influenced
+make a decision | decide ; reach a decision
+made a decision | decided ; reached a decision
+reach a conclusion | conclude ; come to a conclusion
+give consideration to | consider ; weigh
+conduct an investigation | investigate ; look into
+provide assistance to | help ; assist ; support
+make an attempt to | try to ; attempt to
+made an attempt to | tried to ; attempted to
+in a timely manner | promptly ; on time ; quickly
+during the course of | during ; throughout ; over
+in the absence of | without ; lacking
+a sufficient number of | enough ; sufficient
+in spite of | despite ; notwithstanding
+regardless of | irrespective of ; no matter ; despite
+by and large | generally ; mostly ; on the whole
+in the long run | eventually ; ultimately ; over time
+in the long term | over time ; eventually ; in the future
+on the whole | overall ; generally ; all in all
+for the most part | mostly ; largely ; generally
+it goes without saying that | clearly ; naturally ; of course
+last but not least | finally ; lastly
+needless to say | of course ; naturally ; obviously
+so that | in order that ; such that
+even though | although ; though ; despite the fact that
+although | though ; even though ; while
+as long as | provided that ; if ; so long as
+in the meantime | meanwhile ; in the interim
+from time to time | occasionally ; sometimes ; now and then
+at all times | always ; constantly
+in most cases | usually ; typically ; mostly
+on average | typically ; on the whole ; in general
+in the first place | initially ; firstly ; to begin with
+to begin with | first ; initially ; to start with
+with the help of | using ; with ; via ; through
+in comparison with | compared with ; relative to ; next to
+in comparison to | compared to ; relative to
+compared to | compared with ; relative to ; in comparison to
+is similar to | resembles ; is like ; is comparable to
+are similar to | resemble ; are like ; are comparable to
+is different from | differs from ; is distinct from ; is unlike
+are different from | differ from ; are distinct from
+at least | no less than ; a minimum of ; at minimum
+at most | no more than ; a maximum of ; at maximum
+take advantage of | exploit ; use ; capitalize on ; make the most of
+took advantage of | exploited ; used ; capitalized on
+draw attention to | highlight ; emphasize ; point to
+shed light on | clarify ; illuminate ; explain ; elucidate
+sheds light on | clarifies ; illuminates ; explains
+pave the way for | enable ; lay the groundwork for ; make way for
+paves the way for | enables ; lays the groundwork for
+in depth | thoroughly ; in detail ; comprehensively
+step by step | gradually ; incrementally ; one step at a time
+rather than | instead of ; in place of
+instead of | rather than ; in place of
+as a whole | overall ; in its entirety ; altogether
+each other | one another
+one another | each other
+in short | briefly ; in brief ; in a word
+as a rule | usually ; generally ; typically
+with the aim of | to ; in order to ; aiming to
+with the goal of | to ; in order to ; aiming to
+in an effort to | to ; in an attempt to ; trying to
+is responsible for | handles ; is in charge of ; accounts for
+are responsible for | handle ; are in charge of ; account for
+a means of | a way of ; a method of ; a way to
+a way to | a means of ; a method for ; a way of
+is known as | is called ; is referred to as ; is termed
+are known as | are called ; are referred to as ; are termed
+is referred to as | is called ; is known as ; is termed
+as shown in | as seen in ; as illustrated in ; as depicted in
+as can be seen | as shown ; as is evident ; clearly
+it can be seen that | we see that ; this shows that ; evidently
+this means that | this implies that ; consequently ; hence
+there are many | many ; numerous ; plenty of
+there is a need for | we need ; is needed ; is required
+is used to | serves to ; is employed to ; helps to
+are used to | serve to ; are employed to ; help to
+in turn | consequently ; subsequently ; as a result
+all in all | overall ; on the whole ; in sum
+at the end of the day | ultimately ; in the end ; finally
+think about | consider ; reflect on ; ponder
+thinking about | considering ; reflecting on
+talk about | discuss ; address ; speak about
+talked about | discussed ; addressed
+go on | continue ; carry on ; proceed
+went on | continued ; carried on ; proceeded
+end up | finish ; wind up ; eventually become
+ended up | finished ; wound up ; eventually became
+try to | attempt to ; seek to ; aim to
+tries to | attempts to ; seeks to ; aims to
+tried to | attempted to ; sought to ; aimed to
+help to | assist in ; serve to ; contribute to
+helps to | assists in ; serves to ; contributes to
+"""
+
+
+def _parse():
+    book = {}
+    for line in _RAW.strip().splitlines():
+        if "|" not in line:
+            continue
+        k, v = line.split("|", 1)
+        k = k.strip().lower()
+        alts = [a.strip() for a in v.split(";") if a.strip()]
+        book.setdefault(k, [])
+        for a in alts:
+            if a not in book[k] and a != k:
+                book[k].append(a)
+    return book
+
+
+BOOK = _parse()
+_KEYS = sorted(BOOK, key=len, reverse=True)
+_RE = re.compile(
+    r"(?<![A-Za-z'-])("
+    + "|".join(re.escape(k).replace("\\ ", " ").replace(" ", r"\s+") for k in _KEYS)
+    + r")(?![A-Za-z'-])",
+    re.I,
+)
+
+
+def lookup(phrase):
+    key = re.sub(r"\s+", " ", phrase.strip().lower())
+    return list(BOOK.get(key, []))
+
+
+def find(text):
+    """Yield (start, end, phrase) for phrase-book matches (longest first, non-overlapping)."""
+    for m in _RE.finditer(text):
+        yield m.start(), m.end(), m.group()

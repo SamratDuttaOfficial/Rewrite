@@ -1,0 +1,20 @@
+\documentclass{article}
+\usepackage{amsmath}
+\title{Efficient Training of Language Models}
+\begin{document}
+\maketitle
+
+\section{Introduction}
+In recent years, deep learning has had an impact on a wide range of fields, as shown in \cite{lecun2015}. However, training large models requires a significant amount of computational resources. In order to address this problem, we propose a simple method that reduces the cost of training by $50\%$ while maintaining accuracy.
+
+Our approach plays an important role in making research more accessible. The results clearly demonstrate that the method works on all benchmarks (see Table~\ref{tab:results}).
+
+\begin{equation}
+  L(\theta) = -\sum_{i=1}^{N} \log p_\theta(x_i)
+\end{equation}
+
+% TODO: add related work
+\section{Method}
+We carefully analyse the loss $L(\theta)$ and \textbf{significantly} reduce the number of gradient steps. It is important to note that this does not require any additional data.
+
+\end{document}

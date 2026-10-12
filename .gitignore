@@ -1,0 +1,8 @@
+.venv/
+models/
+settings.json
+__pycache__/
+*.pyc
+*.part
+build/
+dist/
