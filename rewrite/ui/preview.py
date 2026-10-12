@@ -9,7 +9,7 @@ from tkinter import ttk
 
 from .. import latexbuild, mdrender
 from ..lane import Lane
-from .widgets import FlatButton
+from .widgets import IconButton
 
 HEADING_SCALE = {1: 1.9, 2: 1.5, 3: 1.25, 4: 1.1, 5: 1.0, 6: 0.92}
 
@@ -22,7 +22,7 @@ class MarkdownView(tk.Frame):
         self.app, self.t = app, app.theme
         t = self.t
         self.text = tk.Text(self, wrap="word", bd=0, highlightthickness=0, relief="flat", width=1, height=1,
-                            padx=t.px(24), pady=t.px(18), cursor="arrow", insertwidth=0, takefocus=0)
+                            padx=t.px(18), pady=t.px(12), cursor="arrow", insertwidth=0, takefocus=0)
         self.vsb = ttk.Scrollbar(self, orient="vertical", command=self.text.yview)
         self.text.configure(yscrollcommand=self.vsb.set, state="disabled")
         self.vsb.pack(side="right", fill="y")
@@ -48,17 +48,17 @@ class MarkdownView(tk.Frame):
             self._font_key = (t.editor_family, t.size)
         x.configure(bg=c["surface"], fg=c["text"], font=self._font(), selectbackground=c["select"],
                     selectforeground=c["text"], inactiveselectbackground=c["select"],
-                    spacing1=0, spacing2=t.px(3), spacing3=0)
-        x.tag_configure("p", spacing3=t.px(11))
+                    spacing1=0, spacing2=t.px(2), spacing3=0)
+        x.tag_configure("p", spacing3=t.px(round(t.size * 1.2)))  # grows with the text size
         for lvl, sc in HEADING_SCALE.items():
-            x.tag_configure(f"h{lvl}", font=self._font(scale=sc, bold=True), spacing1=t.px(16 if lvl < 3 else 10),
-                            spacing3=t.px(8), foreground=c["text"] if lvl < 6 else c["muted"])
+            x.tag_configure(f"h{lvl}", font=self._font(scale=sc, bold=True), spacing1=t.px(10 if lvl < 3 else 6),
+                            spacing3=t.px(5), foreground=c["text"] if lvl < 6 else c["muted"])
         for d in range(8):
             left = t.px(8 + 22 * d)
-            x.tag_configure(f"li{d}", lmargin1=left, lmargin2=left + t.px(20), spacing3=t.px(4),
+            x.tag_configure(f"li{d}", lmargin1=left, lmargin2=left + t.px(20), spacing3=t.px(2),
                             tabs=(left + t.px(20),))
             x.tag_configure(f"q{d + 1}", lmargin1=t.px(18 * (d + 1)), lmargin2=t.px(18 * (d + 1)),
-                            foreground=c["muted"], spacing3=t.px(8))
+                            foreground=c["muted"], spacing3=t.px(5))
         x.tag_configure("pre", font=self._font("mono"), background=c["hover"], lmargin1=t.px(12),
                         lmargin2=t.px(12), rmargin=t.px(12), wrap="none", spacing2=0)
         x.tag_configure("rule", font=self._hair, background=c["border"])
@@ -172,7 +172,7 @@ class MarkdownView(tk.Frame):
             tabs += [pos + (width[j] if a == "right" else width[j] // 2 if a == "center" else 0), a]
             pos += width[j] + t.px(26)
         tag = f"tbl{n}"
-        x.tag_configure(tag, tabs=tuple(tabs), wrap="none", spacing3=t.px(5))
+        x.tag_configure(tag, tabs=tuple(tabs), wrap="none", spacing3=t.px(3))
         for k, row in enumerate([head] + rows):
             for cell in row:
                 x.insert("end", "\t", (tag,))
@@ -336,7 +336,7 @@ class PdfView(tk.Frame):
         c, t = self.canvas, self.t
         if not self.sizes:
             return
-        gap = t.px(12)
+        gap = t.px(8)
         room = max(t.px(120), c.winfo_width() - 2 * gap)
         scale = min(room * self.zoom, 3600) / max(w for w, _ in self.sizes)
         total_w = max(c.winfo_width(), int(max(w for w, _ in self.sizes) * scale) + 2 * gap)
@@ -389,25 +389,26 @@ class PreviewPanel(tk.Frame):
         t.paint(self, bg="panel")
         head = tk.Frame(self, bd=0)
         t.paint(head, bg="panel")
-        head.pack(fill="x", padx=(t.px(16), t.px(6)), pady=(t.px(6), t.px(4)))
+        head.pack(fill="x", padx=(t.px(10), t.px(4)), pady=t.px(2))
         cap = tk.Label(head, text="PREVIEW", font=t.f_tiny, bd=0)
         t.paint(cap, bg="panel", fg="faint")
         cap.pack(side="left")
         self.status = tk.Label(head, text="", font=t.f_small, bd=0, anchor="w")
-        self.status.pack(side="left", padx=(t.px(10), 0), fill="x", expand=True)
-        FlatButton(head, t, "✕", lambda: app.set_preview(False), bg="panel", tip="Close the preview").pack(side="right")
-        FlatButton(head, t, "↻", lambda: self.refresh(manual=True), bg="panel", font=t.f_item,
-                   tip="Refresh the preview / rebuild the PDF (F5)").pack(side="right")
-        self.zoom_in = FlatButton(head, t, "+", lambda: self.pdf.set_zoom(self.pdf.zoom * 1.2), bg="panel",
-                                  font=t.f_item, tip="Zoom in (Ctrl + mouse wheel)")
-        self.zoom_out = FlatButton(head, t, "−", lambda: self.pdf.set_zoom(self.pdf.zoom / 1.2), bg="panel",
-                                   font=t.f_item, tip="Zoom out")
+        self.status.pack(side="left", padx=(t.px(8), 0), fill="x", expand=True)
+        tool = dict(bg="panel", pad=(4, 4), size=14)
+        IconButton(head, t, "close", lambda: app.set_preview(False), "Close the preview", **tool).pack(side="right")
+        IconButton(head, t, "refresh", lambda: self.refresh(manual=True),
+                   "Refresh the preview / rebuild the PDF (F5)", **tool).pack(side="right")
+        self.zoom_in = IconButton(head, t, "plus", lambda: self.pdf.set_zoom(self.pdf.zoom * 1.2),
+                                  "Zoom in (Ctrl + mouse wheel)", **tool)
+        self.zoom_out = IconButton(head, t, "minus", lambda: self.pdf.set_zoom(self.pdf.zoom / 1.2),
+                                   "Zoom out", **tool)
         line = tk.Frame(self, height=1, bd=0)
         t.paint(line, bg="border")
         line.pack(fill="x")
         # LaTeX errors, listed above the page; click one to jump to its line
         self.errors = tk.Text(self, height=1, bd=0, highlightthickness=0, wrap="word", font=t.f_small,
-                              padx=t.px(16), pady=t.px(8), cursor="arrow", takefocus=0)
+                              padx=t.px(10), pady=t.px(5), cursor="arrow", takefocus=0)
         self.body = tk.Frame(self, bd=0)
         self.body.pack(fill="both", expand=True)
         self.body.grid_rowconfigure(0, weight=1)
@@ -415,11 +416,11 @@ class PreviewPanel(tk.Frame):
         self.md = MarkdownView(self.body, app)
         self.pdf = PdfView(self.body, app)
         self.message = tk.Label(self.body, text="", font=t.f_ui, justify="left", anchor="nw", bd=0,
-                                padx=t.px(22), pady=t.px(22))
+                                padx=t.px(14), pady=t.px(12))
         t.paint(self.message, bg="panel", fg="muted")
         for w in (self.md, self.pdf, self.message):
             w.grid(row=0, column=0, sticky="nsew")
-        self.message.bind("<Configure>", lambda e: self.message.configure(wraplength=max(80, e.width - t.px(44))))
+        self.message.bind("<Configure>", lambda e: self.message.configure(wraplength=max(80, e.width - t.px(28))))
         self.lane = Lane(app, "latex")
         self.cancel = None  # stops the compiler when a newer build starts
         self.mode = None

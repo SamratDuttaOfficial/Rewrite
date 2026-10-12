@@ -4,6 +4,8 @@ import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk
 
+from . import icons
+
 LIGHT = {
     "bg": "#F4F3EF", "surface": "#FFFFFF", "panel": "#FAF9F6", "border": "#E3E0D8", "hover": "#F0EEE8",
     "text": "#1E2227", "muted": "#646A73", "faint": "#9A9FA7",
@@ -52,7 +54,7 @@ def _first_available(candidates, fallback):
 
 
 class Theme:
-    def __init__(self, root, name="light", editor_family="serif", size=13):
+    def __init__(self, root, name="light", editor_family="serif", size=11):
         self.root = root
         self.name = name
         self.c = LIGHT if name == "light" else DARK
@@ -76,21 +78,31 @@ class Theme:
         self.ui_family = ui
         self.editor_family = editor_family if editor_family in self.families else "serif"
         self.size = size
-        base = 10 if sys.platform != "darwin" else 13
+        base = 9 if sys.platform != "darwin" else 12
         self.f_ui = tkfont.Font(root, family=ui, size=base)
         self.f_ui_bold = tkfont.Font(root, family=ui, size=base, weight="bold")
         self.f_small = tkfont.Font(root, family=ui, size=base - 1)
         self.f_strike = tkfont.Font(root, family=ui, size=base, overstrike=1)
-        self.f_tiny = tkfont.Font(root, family=ui, size=base - 2, weight="bold")
-        self.f_title = tkfont.Font(root, family=ui, size=base + 7, weight="bold")
+        self.f_tiny = tkfont.Font(root, family=ui, size=base - 1, weight="bold")
+        self.f_title = tkfont.Font(root, family=ui, size=base + 4, weight="bold")
+        self.f_head = tkfont.Font(root, family=ui, size=base + 2, weight="bold")
         self.f_item = tkfont.Font(root, family=ui, size=base + 1)
         self.f_item_bold = tkfont.Font(root, family=ui, size=base + 1, weight="bold")
         self.f_editor = tkfont.Font(root, family=self.families[self.editor_family], size=size)
 
         self._reg = []  # (widget, {option: colour key}) for live theme switching
+        self._icons = {}  # (name, colour, pixels) -> PhotoImage
 
     def px(self, n):
         return int(round(n * self.scale))
+
+    def icon(self, name, color, size=16):
+        """The picture for an icon button, in a colour given as #RRGGBB."""
+        key = (name, color, self.px(size))
+        if key not in self._icons:
+            rgb = tuple(int(color[k:k + 2], 16) for k in (1, 3, 5))
+            self._icons[key] = tk.PhotoImage(master=self.root, data=icons.png(name, key[2], rgb), format="png")
+        return self._icons[key]
 
     def paint(self, widget, **roles):
         """Colour a widget from the palette and remember it for theme switches."""
@@ -137,14 +149,14 @@ class Theme:
         for name, bg in (("Vertical.TScrollbar", c["surface"]), ("Panel.Vertical.TScrollbar", c["panel"])):
             st.configure(name, background=c["border"], troughcolor=bg, bordercolor=bg,
                          lightcolor=c["border"], darkcolor=c["border"], arrowcolor=c["muted"],
-                         gripcount=0, arrowsize=self.px(12), width=self.px(12))
+                         gripcount=0, arrowsize=self.px(9), width=self.px(9))
             st.map(name, background=[("active", c["faint"]), ("!active", c["border"])])
         st.layout("Vertical.TScrollbar", [("Vertical.Scrollbar.trough", {
             "children": [("Vertical.Scrollbar.thumb", {"expand": "1", "sticky": "nswe"})], "sticky": "ns"})])
         st.layout("Panel.Vertical.TScrollbar", [("Vertical.Scrollbar.trough", {
             "children": [("Vertical.Scrollbar.thumb", {"expand": "1", "sticky": "nswe"})], "sticky": "ns"})])
         st.configure("TProgressbar", background=c["accent"], troughcolor=c["border"],
-                     bordercolor=c["border"], lightcolor=c["accent"], darkcolor=c["accent"], thickness=self.px(6))
+                     bordercolor=c["border"], lightcolor=c["accent"], darkcolor=c["accent"], thickness=self.px(4))
         st.configure("TPanedwindow", background=c["border"])
         st.configure("Sash", sashthickness=self.px(4), gripcount=0, background=c["border"])  # wide enough to grab
         st.configure("TCheckbutton", background=c["surface"], foreground=c["text"], font=self.f_ui,

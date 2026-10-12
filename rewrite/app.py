@@ -19,7 +19,7 @@ from .ui.dialogs import MOD, AutoRewriteDialog, HelpDialog, ModelsDialog
 from .ui.panel import SuggestionPanel
 from .ui.preview import PreviewPanel
 from .ui.theme import Theme
-from .ui.widgets import FlatButton, Toggle, Tooltip
+from .ui.widgets import FlatButton, IconButton, Toggle, Tooltip
 
 ASTRAL = re.compile("[\U00010000-\U0010FFFF]")
 MODKEY = "Command" if sys.platform == "darwin" else "Control"
@@ -145,7 +145,8 @@ class App:
         self.settings = models.load_settings()
         self.q = queue.Queue()
         self.theme = Theme(root, self.settings.get("theme", "light"),
-                           self.settings.get("font_family") or "serif", int(self.settings.get("font_size", 13)))
+                           self.settings.get("font_family") or "serif",
+                           int(self.settings.get("font_size") or models.DEFAULTS["font_size"]))
         self.theme.style_ttk()
         self.icon = None
         try:
@@ -253,39 +254,36 @@ class App:
         r.minsize(t.px(760), t.px(480))
         self.build_menu()
 
-        # toolbar
+        # toolbar: icon buttons, each one explained by its tooltip
         bar = tk.Frame(r, bd=0)
         t.paint(bar, bg="bg")
-        bar.pack(fill="x", padx=t.px(10), pady=(t.px(8), t.px(6)))
+        bar.pack(fill="x", padx=t.px(6), pady=t.px(3))
         self.toolbar = bar
-        FlatButton(bar, t, "Open", self.open_file, tip=f"Open a file ({MOD}+O)").pack(side="left")
-        FlatButton(bar, t, "Save", self.save, tip=f"Save ({MOD}+S)").pack(side="left", padx=(t.px(2), 0))
+        IconButton(bar, t, "open", self.open_file, f"Open a file ({MOD}+O)").pack(side="left")
+        IconButton(bar, t, "save", self.save, f"Save ({MOD}+S)").pack(side="left")
         self._sep(bar)
-        FlatButton(bar, t, "↶", self.undo, tip=f"Undo ({MOD}+Z)", font=t.f_item).pack(side="left")
-        FlatButton(bar, t, "↷", self.redo, tip=f"Redo ({MOD}+Y)", font=t.f_item).pack(side="left")
+        IconButton(bar, t, "undo", self.undo, f"Undo ({MOD}+Z)").pack(side="left")
+        IconButton(bar, t, "redo", self.redo, f"Redo ({MOD}+Y)").pack(side="left")
         self._sep(bar)
-        FlatButton(bar, t, "Rephrase sentence", self.rephrase_sentence, kind="soft",
-                   tip=f"Rewrite the sentence at the cursor ({MOD}+R)").pack(side="left")
-        FlatButton(bar, t, "Auto-rewrite…", self.auto_rewrite, kind="primary",
-                   tip=f"Rewrite the selection or whole document ({MOD}+Shift+R)").pack(
-            side="left", padx=(t.px(8), 0))
+        IconButton(bar, t, "pencil", self.rephrase_sentence,
+                   f"Rephrase the sentence at the cursor ({MOD}+R)").pack(side="left")
+        FlatButton(bar, t, "Auto-rewrite…", self.auto_rewrite, kind="primary", icon="wand", pad=(8, 5),
+                   tip=f"Rewrite the selection or the whole document ({MOD}+Shift+R)").pack(
+            side="left", padx=(t.px(4), 0))
 
-        self.theme_btn = FlatButton(bar, t, "☾" if t.name == "light" else "☀", self.toggle_theme,
-                                    tip="Light / dark", font=t.f_item)
+        self.theme_btn = IconButton(bar, t, "moon" if t.name == "light" else "sun", self.toggle_theme,
+                                    "Light / dark theme")
         self.theme_btn.pack(side="right")
-        self.mode_btn = FlatButton(bar, t, "Loading models…", self.open_models)
-        self.mode_tip = Tooltip(self.mode_btn, t, "Models")
-        self.mode_btn.pack(side="right", padx=(0, t.px(6)))
         self._sep(bar, side="right")
-        self.t_changes = Toggle(bar, t, "Show changes", self.settings.get("show_changes", True),
-                                self.set_show_changes, tip="Highlight everything that differs from the original")
-        self.t_changes.pack(side="right", padx=(t.px(4), 0))
-        self.t_hints = Toggle(bar, t, "Phrase hints", self.settings.get("phrase_hints", True), self.set_hints,
-                              tip="Underline wordy phrases that have ready alternatives")
-        self.t_hints.pack(side="right")
-        self.t_preview = Toggle(bar, t, "Preview", False, self.set_preview,
-                                tip=f"Show the document as it will look: Markdown or the LaTeX PDF ({MOD}+P)")
-        self.t_preview.pack(side="right", padx=(0, t.px(4)))
+        self.t_changes = Toggle(bar, t, "diff", self.settings.get("show_changes", True), self.set_show_changes,
+                                tip="Show changes: highlight everything that differs from the original")
+        self.t_changes.pack(side="right", padx=(t.px(2), 0))
+        self.t_hints = Toggle(bar, t, "bulb", self.settings.get("phrase_hints", True), self.set_hints,
+                              tip="Phrase hints: underline wordy phrases that have ready alternatives")
+        self.t_hints.pack(side="right", padx=(t.px(2), 0))
+        self.t_preview = Toggle(bar, t, "eye", False, self.set_preview,
+                                tip=f"Preview: the document as it will look, Markdown or the LaTeX PDF ({MOD}+P)")
+        self.t_preview.pack(side="right")
 
         # body: editor | suggestions. With the preview open: (editor over suggestions) | preview.
         # The three parts are children of the window, so they can move between the two panes.
@@ -297,15 +295,15 @@ class App:
         t.paint(ed, bg="surface")
         # width/height=1: let the paned window, not the text's own request, decide its size
         self.text = tk.Text(ed, wrap="word", undo=True, maxundo=-1, autoseparators=True, bd=0, width=1, height=1,
-                            highlightthickness=0, font=t.f_editor, padx=t.px(40), pady=t.px(26),
-                            spacing1=t.px(2), spacing2=t.px(4), spacing3=t.px(8), insertwidth=t.px(2),
+                            highlightthickness=0, font=t.f_editor, padx=t.px(24), pady=t.px(14),
+                            spacing1=t.px(1), spacing2=t.px(3), spacing3=t.px(6), insertwidth=t.px(2),
                             exportselection=True, relief="flat", cursor="xterm")
         self.vsb = ttk.Scrollbar(ed, orient="vertical", command=self.text.yview)
         self.text.configure(yscrollcommand=self._on_scroll)
         self.vsb.pack(side="right", fill="y")
         self.text.pack(side="left", fill="both", expand=True)
         self.color_editor()
-        self.panel_frame = tk.Frame(r, bd=0, width=t.px(370), height=t.px(250))
+        self.panel_frame = tk.Frame(r, bd=0, width=t.px(320), height=t.px(220))
         self.panel_frame.pack_propagate(False)
         t.paint(self.panel_frame, bg="panel")
         self.panel = SuggestionPanel(self.panel_frame, self)
@@ -316,25 +314,28 @@ class App:
         self.pane.add(self.panel_frame, weight=0)
         r.after(100, self._place_sash)
 
-        # status bar
+        # status bar: file and format, word count | messages, model status
         sb = tk.Frame(r, bd=0)
         t.paint(sb, bg="bg")
         sb.pack(fill="x", side="bottom", before=self.pane)
         self.statusbar = sb
         self.status_file = FlatButton(sb, t, "", self.pick_kind, tip="File format (click to change)",
-                                      font=t.f_small)
-        self.status_file.pack(side="left", padx=(t.px(4), 0))
+                                      font=t.f_small, pad=(6, 2))
+        self.status_file.pack(side="left", padx=(t.px(2), 0))
         self.status_stats = tk.Label(sb, text="", font=t.f_small, anchor="w", bd=0)
         t.paint(self.status_stats, bg="bg", fg="muted")
-        self.status_stats.pack(side="left", padx=(t.px(8), 0))
+        self.status_stats.pack(side="left", padx=(t.px(6), 0))
+        self.mode_btn = FlatButton(sb, t, "Loading models…", self.open_models, font=t.f_small, pad=(6, 2))
+        self.mode_tip = Tooltip(self.mode_btn, t, "Models")
+        self.mode_btn.pack(side="right", padx=(0, t.px(2)))
         self.status_right = tk.Frame(sb, bd=0)
         t.paint(self.status_right, bg="bg")
-        self.status_right.pack(side="right", padx=(0, t.px(10)))
-        self.progress = ttk.Progressbar(self.status_right, mode="determinate", length=t.px(160), maximum=1000)
+        self.status_right.pack(side="right", padx=(0, t.px(8)))
+        self.progress = ttk.Progressbar(self.status_right, mode="determinate", length=t.px(120), maximum=1000)
         self.progress_lbl = tk.Label(self.status_right, text="", font=t.f_small, bd=0)
         t.paint(self.progress_lbl, bg="bg", fg="muted")
         self.cancel_btn = FlatButton(self.status_right, t, "Cancel", self.cancel_auto, kind="link", font=t.f_small)
-        self.msg = tk.Label(self.status_right, text="", font=t.f_small, bd=0)
+        self.msg = tk.Label(self.status_right, text="", font=t.f_small, bd=0, anchor="w")  # long: cut at the end
         t.paint(self.msg, bg="bg", fg="muted")
         self.msg.pack(side="right")
 
@@ -346,9 +347,9 @@ class App:
         self.text.focus_set()
 
     def _sep(self, bar, side="left"):
-        f = tk.Frame(bar, width=1, height=self.theme.px(20), bd=0)
+        f = tk.Frame(bar, width=1, height=self.theme.px(16), bd=0)
         self.theme.paint(f, bg="border")
-        f.pack(side=side, padx=self.theme.px(8))
+        f.pack(side=side, padx=self.theme.px(5))
 
     def _place_sash(self):
         try:
@@ -361,9 +362,9 @@ class App:
                 self.pane.sashpos(0, max(px(360), int(w * float(self.settings.get("preview_split", 0.5)))))
                 self.root.update_idletasks()
                 h = self.left.winfo_height()
-                self.left.sashpos(0, max(px(160), h - max(px(170), int(h * 0.34))))
+                self.left.sashpos(0, max(px(140), h - max(px(150), int(h * 0.3))))
             else:
-                self.pane.sashpos(0, max(px(360), w - px(370)))
+                self.pane.sashpos(0, max(px(360), w - px(320)))
         except tk.TclError:
             pass
 
@@ -462,8 +463,8 @@ class App:
     def _center_column(self, e=None):
         """Keep lines at a comfortable reading width on wide windows."""
         width = self.text.winfo_width()
-        col = self.theme.f_editor.measure("n") * 76
-        pad = max(self.theme.px(28), (width - col) // 2)
+        col = self.theme.f_editor.measure("n") * 84
+        pad = max(self.theme.px(18), (width - col) // 2)
         if int(str(self.text.cget("padx"))) != pad:
             self.text.configure(padx=pad)
 
@@ -1584,7 +1585,7 @@ class App:
             self.mode_btn.fg_key = "good"
             self.mode_tip.text = "Models loaded: " + ", ".join(parts) + "\nClick to manage models"
         else:
-            self.mode_btn.configure(text="○ Lite mode — get smart models")
+            self.mode_btn.configure(text="○ Lite mode")
             self.mode_btn.fg_key = "warn"
             self.mode_tip.text = "Only the offline thesaurus is active. Click to download the small models."
         self.mode_btn.recolor()
@@ -1610,7 +1611,7 @@ class App:
         self.theme.style_ttk()
         self.theme.repaint()
         self.color_editor()
-        self.theme_btn.configure(text="☾" if name == "light" else "☀")
+        self.theme_btn.set_icon("moon" if name == "light" else "sun")
         self.update_mode()
         self.panel.render()
         self.preview.retheme()
@@ -1618,7 +1619,7 @@ class App:
         models.save_settings(self.settings)
 
     def zoom(self, d):
-        size = 13 if d == 0 else self.theme.size + d
+        size = models.DEFAULTS["font_size"] if d == 0 else self.theme.size + d
         self.theme.set_editor_font(size=size)
         self._center_column()
         self.preview.retheme()

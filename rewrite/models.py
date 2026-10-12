@@ -139,8 +139,9 @@ def download(key, progress=None, cancel=None):
 # -- settings ------------------------------------------------------------------------
 
 DEFAULTS = {
+    "version": 2,  # of these defaults; see load_settings
     "theme": "light",
-    "font_size": 13,
+    "font_size": 11,
     "font_family": "",
     "first_run_done": False,
     "phrase_hints": True,
@@ -160,9 +161,13 @@ def load_settings():
     s = dict(DEFAULTS)
     try:
         with open(SETTINGS_FILE, encoding="utf-8") as f:
-            s.update(json.load(f))
+            saved = json.load(f)
+        if saved.get("version", 1) < 2 and saved.get("font_size") == 13:
+            del saved["font_size"]  # 13 was the default before the compact layout; a size the user chose is kept
+        s.update(saved)
     except Exception:
         pass
+    s["version"] = DEFAULTS["version"]
     return s
 
 

@@ -1,18 +1,28 @@
 """Small custom widgets that look the same on Windows, macOS and Linux."""
 import sys
+import time
 import tkinter as tk
 from tkinter import ttk
 
 
 class FlatButton(tk.Label):
-    """A flat, label-based button. kind: ghost | primary | soft | link."""
+    """A flat, label-based button. kind: ghost | primary | soft | link.
+    With icon=, a picture comes before the text; see IconButton for buttons without text."""
 
-    def __init__(self, parent, theme, text, command=None, kind="ghost", tip=None, bg="bg", font=None, **kw):
+    def __init__(self, parent, theme, text="", command=None, kind="ghost", tip=None, bg="bg", font=None,
+                 icon=None, pad=None, size=16, **kw):
         self.t, self.kind, self.command, self.bg_key = theme, kind, command, bg
         self.fg_key = None
         self.enabled = True
-        super().__init__(parent, text=text, cursor="hand2", font=font or theme.f_ui,
-                         padx=theme.px(12 if kind != "link" else 2), pady=theme.px(6 if kind != "link" else 1),
+        self.icon, self.icon_size, self._img = icon, size, None
+        padx, pady = pad or ((2, 1) if kind == "link" else (5, 5) if icon and not text else (9, 4))
+        if icon and text:
+            kw.update(compound="left", text=" " + text)
+        elif icon:  # Tk ignores padx/pady on a label that is only a picture: give it its size instead
+            kw.update(width=theme.px(size) + 2 * theme.px(padx), height=theme.px(size) + 2 * theme.px(pady))
+        else:
+            kw.update(text=text)
+        super().__init__(parent, cursor="hand2", font=font or theme.f_ui, padx=theme.px(padx), pady=theme.px(pady),
                          bd=0, **kw)
         self._hover = False
         self.recolor()
@@ -20,8 +30,7 @@ class FlatButton(tk.Label):
         self.bind("<Enter>", lambda e: self._set_hover(True))
         self.bind("<Leave>", lambda e: self._set_hover(False))
         self.bind("<ButtonRelease-1>", self._click)
-        if tip:
-            Tooltip(self, theme, tip)
+        self.tip = Tooltip(self, theme, tip) if tip else None
 
     def _colors(self):
         c = self.t.c
@@ -38,6 +47,13 @@ class FlatButton(tk.Label):
     def recolor(self):
         bg, fg = self._colors()
         self.configure(bg=bg, fg=fg, activebackground=bg)
+        if self.icon:
+            self._img = self.t.icon(self.icon, fg, self.icon_size)
+            self.configure(image=self._img)
+
+    def set_icon(self, name):
+        self.icon = name
+        self.recolor()
 
     def _set_hover(self, v):
         self._hover = v and self.enabled
@@ -53,15 +69,19 @@ class FlatButton(tk.Label):
         self.recolor()
 
 
-class Toggle(FlatButton):
-    """A pill that toggles a boolean."""
+class IconButton(FlatButton):
+    """A button that is only a picture; its tooltip says what it does."""
 
-    def __init__(self, parent, theme, text, value=False, command=None, tip=None):
-        self.value, self.label, self.on_change = value, text, command
-        super().__init__(parent, theme, self._text(value), self._toggle, tip=tip)
+    def __init__(self, parent, theme, icon, command=None, tip=None, **kw):
+        super().__init__(parent, theme, "", command, tip=tip, icon=icon, **kw)
 
-    def _text(self, v):
-        return ("✓ " if v else "  ") + self.label
+
+class Toggle(IconButton):
+    """An icon button that stays lit while its setting is on."""
+
+    def __init__(self, parent, theme, icon, value=False, command=None, tip=None):
+        self.value, self.on_change = value, command
+        super().__init__(parent, theme, icon, self._toggle, tip=tip)
 
     def _colors(self):
         c = self.t.c
@@ -76,11 +96,12 @@ class Toggle(FlatButton):
 
     def set(self, v):
         self.value = v
-        self.configure(text=self._text(v))
         self.recolor()
 
 
 class Tooltip:
+    _closed = 0.0  # when a tooltip was last closed: the next one, on a neighbouring button, opens at once
+
     def __init__(self, widget, theme, text):
         self.w, self.t, self.text, self.tip, self.job = widget, theme, text, None, None
         widget.bind("<Enter>", self._schedule, add="+")
@@ -88,19 +109,27 @@ class Tooltip:
         widget.bind("<ButtonPress>", self._hide, add="+")
 
     def _schedule(self, _):
-        self.job = self.w.after(600, self._show)
+        self._hide()
+        self.job = self.w.after(60 if time.time() - Tooltip._closed < 0.5 else 500, self._show)
 
     def _show(self):
-        if self.tip or not self.w.winfo_exists():
+        self.job = None
+        if self.tip or not self.text or not self.w.winfo_exists():
             return
-        c = self.t.c
-        x = self.w.winfo_rootx()
-        y = self.w.winfo_rooty() + self.w.winfo_height() + self.t.px(4)
-        self.tip = tk.Toplevel(self.w)
-        self.tip.wm_overrideredirect(True)
-        self.tip.wm_geometry(f"+{x}+{y}")
-        tk.Label(self.tip, text=self.text, bg=c["text"], fg=c["surface"], font=self.t.f_small,
-                 padx=self.t.px(8), pady=self.t.px(4), justify="left").pack()
+        c, px = self.t.c, self.t.px
+        tip = self.tip = tk.Toplevel(self.w)
+        tip.wm_overrideredirect(True)
+        tip.withdraw()
+        tk.Label(tip, text=self.text, bg=c["text"], fg=c["surface"], font=self.t.f_small, padx=px(6), pady=px(3),
+                 justify="left", wraplength=px(340)).pack()
+        tip.update_idletasks()
+        w, h = tip.winfo_reqwidth(), tip.winfo_reqheight()
+        x = max(0, min(self.w.winfo_rootx(), self.w.winfo_screenwidth() - w - px(4)))  # stay on the screen
+        y = self.w.winfo_rooty() + self.w.winfo_height() + px(3)
+        if y + h > self.w.winfo_screenheight():
+            y = self.w.winfo_rooty() - h - px(3)
+        tip.wm_geometry(f"+{x}+{y}")
+        tip.deiconify()
 
     def _hide(self, _=None):
         if self.job:
@@ -109,6 +138,7 @@ class Tooltip:
         if self.tip:
             self.tip.destroy()
             self.tip = None
+            Tooltip._closed = time.time()
 
 
 class ScrollFrame(tk.Frame):
@@ -172,7 +202,7 @@ class ScrollFrame(tk.Frame):
 
 class FitBar(tk.Canvas):
     def __init__(self, parent, theme, fit, bg):
-        w, h = theme.px(40), theme.px(5)
+        w, h = theme.px(28), theme.px(4)
         super().__init__(parent, width=w, height=h, bd=0, highlightthickness=0, bg=bg)
         c = theme.c
         color = c["good"] if fit >= 0.66 else c["accent"] if fit >= 0.4 else c["faint"]

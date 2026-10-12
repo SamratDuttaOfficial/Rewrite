@@ -1,7 +1,10 @@
-"""Right-hand side panel: alternatives for the current word/phrase and sentence rewrites."""
+"""Side panel: alternatives for the current word or phrase, proofreading remarks and sentence rewrites."""
 import tkinter as tk
 
-from .widgets import FitBar, FlatButton, ScrollFrame
+from .widgets import FitBar, FlatButton, IconButton, ScrollFrame, Tooltip
+
+PAD = 10  # margin left and right of the content
+WIDE = 480  # from this width on (the panel below the editor) there is room for two columns
 
 TIPS = [
     ("Click a word", "to see alternatives that fit its context."),
@@ -21,8 +24,10 @@ class SuggestionPanel(tk.Frame):
         self.t.paint(self, bg="panel")
         self.scroll = ScrollFrame(self, self.t, bg="panel")
         self.scroll.pack(fill="both", expand=True)
-        self.inner = self.scroll.inner
-        self.wrap_labels = []
+        self.inner = self.col = self.scroll.inner
+        self.wide = False
+        self.wrap_labels = []  # (label, pixels of its line taken by other things): wrapped to the panel width
+        self.clip_labels = []  # (label, tooltip, text, font, pixels taken): kept to one line, cut with …
         self.state = {"target": None, "sentence": "idle", "sentences": [], "orig": None, "review": None,
                       "issue": None}
         self.scroll.canvas.bind("<Configure>", self._rewrap, add="+")
@@ -33,15 +38,37 @@ class SuggestionPanel(tk.Frame):
     # -- helpers ------------------------------------------------------------------
     @property
     def width(self):
-        return max(self.t.px(220), self.scroll.canvas.winfo_width() - self.t.px(36))
+        """Room for text in a column."""
+        w = self.scroll.canvas.winfo_width()
+        return max(self.t.px(180), (w // 2 if self.wide else w) - self.t.px(2 * PAD))
 
     def _rewrap(self, _=None):
+        if (self.winfo_width() >= self.t.px(WIDE)) != self.wide:
+            self.render()  # room for two columns now, or no longer
+            return
         w = self.width
         for lbl, extra in self.wrap_labels:
             try:
                 lbl.configure(wraplength=max(50, w - extra))
             except tk.TclError:
                 pass
+        for entry in self.clip_labels:
+            try:
+                self._clip(*entry)
+            except tk.TclError:
+                pass
+
+    def _clip(self, lbl, tip, text, font, extra):
+        """Show as much of the text as fits on one line; the tooltip has all of it."""
+        room, shown = self.width - extra, text
+        if font.measure(text) > room:
+            lo, hi = 0, len(text)
+            while lo < hi:
+                mid = (lo + hi + 1) // 2
+                lo, hi = (mid, hi) if font.measure(text[:mid] + "…") <= room else (lo, mid - 1)
+            shown = text[:lo].rstrip() + "…"
+        lbl.configure(text=shown)
+        tip.text = text if shown != text else ""
 
     def _label(self, parent, text, font, fg="text", bg="panel", wrap=0, **kw):
         lbl = tk.Label(parent, text=text, font=font, anchor="w", justify="left", bd=0, **kw)
@@ -51,21 +78,39 @@ class SuggestionPanel(tk.Frame):
             self.wrap_labels.append((lbl, wrap))
         return lbl
 
-    def _caption(self, text, pady=(18, 6)):
-        f = tk.Frame(self.inner, bd=0)
+    def _text(self, text, font=None, fg="muted", top=2):
+        """A wrapped line of text across the column."""
+        lbl = self._label(self.col, text, font or self.t.f_small, fg=fg)
+        lbl.pack(fill="x", padx=self.t.px(PAD), pady=(self.t.px(top), 0))
+        return lbl
+
+    def _caption(self, text, top=8):
+        """A small heading. Icon buttons added with _tool() line up at its right."""
+        f = tk.Frame(self.col, bd=0)
         self.t.paint(f, bg="panel")
-        f.pack(fill="x", padx=self.t.px(18), pady=(self.t.px(pady[0]), self.t.px(pady[1])))
+        f.pack(fill="x", padx=(self.t.px(PAD), self.t.px(PAD - 4)), pady=(self.t.px(top), self.t.px(2)))
+        f.tools = tk.Frame(f, bd=0)
+        self.t.paint(f.tools, bg="panel")
+        f.tools.pack(side="right")
         self._label(f, text.upper(), self.t.f_tiny, fg="faint", wrap=None).pack(side="left")
         return f
 
-    def _divider(self):
-        d = tk.Frame(self.inner, height=1, bd=0)
-        self.t.paint(d, bg="border")
-        d.pack(fill="x", padx=self.t.px(18), pady=(self.t.px(14), 0))
+    def _section(self, text):
+        """Start a new part of the panel: a hairline (except at the top) and its heading."""
+        if self.col.winfo_children():
+            d = tk.Frame(self.col, height=1, bd=0)
+            self.t.paint(d, bg="border")
+            d.pack(fill="x", pady=(self.t.px(8), 0))
+        return self._caption(text, top=6)
+
+    def _tool(self, head, icon, command, tip, kind="ghost", gap=0):
+        b = IconButton(head.tools, self.t, icon, command, tip, kind=kind, bg="panel", pad=(3, 3), size=14)
+        b.pack(side="left", padx=(self.t.px(gap), 0))
+        return b
 
     def _badge(self, parent, kind, bg):
         fg, soft = self.t.c["badge"].get(kind, (self.t.c["muted"], self.t.c["hover"]))
-        return tk.Label(parent, text=kind, font=self.t.f_tiny, fg=fg, bg=soft, padx=self.t.px(6), pady=0, bd=0)
+        return tk.Label(parent, text=kind, font=self.t.f_tiny, fg=fg, bg=soft, padx=self.t.px(4), pady=0, bd=0)
 
     # -- state updates --------------------------------------------------------------
     def set_target(self, target):
@@ -97,26 +142,44 @@ class SuggestionPanel(tk.Frame):
 
     # -- rendering ------------------------------------------------------------------
     def render(self, focus_sentence=False):
+        t = self.t
         for w in self.inner.winfo_children():
             w.destroy()
-        self.wrap_labels = []
+        self.wrap_labels, self.clip_labels = [], []
         if self._anim:
             self.after_cancel(self._anim)
             self._anim = None
+        # one column beside the editor; below it, the sentence rewrites get a column of their own
+        self.wide = self.winfo_width() >= t.px(WIDE)
+        cols = []
+        for k in (0, 2):
+            on = k == 0 or self.wide
+            self.inner.grid_columnconfigure(k, weight=int(on), uniform="col" if on else "")
+            if on:
+                cols.append(tk.Frame(self.inner, bd=0))
+                t.paint(cols[-1], bg="panel")
+                cols[-1].grid(row=0, column=k, sticky="new")
+        if self.wide:
+            line = tk.Frame(self.inner, width=1, bd=0)
+            t.paint(line, bg="border")
+            line.grid(row=0, column=1, sticky="ns")
+        self.col = cols[0]
         if self.state["review"]:
             self._render_review(self.state["review"])
         if self.state["issue"]:
             self._render_issue(self.state["issue"])
-        t = self.state["target"]
-        if t is None:
+        target = self.state["target"]
+        if target is None:
             if not self.state["review"] and not self.state["issue"]:
                 self._render_tips()
         else:
-            self._render_target(t)
+            self._render_target(target)
+        self.col = cols[-1]
         if self.state["orig"] is not None:
             self._render_original(self.state["orig"])
         self._render_sentence()
-        tk.Frame(self.inner, height=self.t.px(24), bg=self.t.c["panel"]).pack(fill="x")
+        for col in cols:
+            tk.Frame(col, height=t.px(10), bg=t.c["panel"]).pack(fill="x")
         self.scroll.top()
         if focus_sentence:
             self.after_idle(self._show_sentence_section)
@@ -131,189 +194,156 @@ class SuggestionPanel(tk.Frame):
         except (tk.TclError, AttributeError):
             pass
 
-    def _render_review(self, rv):
-        t, c, app = self.t, self.t.c, self.app
-        n, cur = rv["pending"], rv.get("current")
-        if cur:
-            self._caption(f"Suggested change  ·  {cur['pos']} of {n}", pady=(18, 6))
-            outer = tk.Frame(self.inner, bd=0, bg=c["accent"])
-            outer.pack(fill="x", padx=t.px(18))
-            card = tk.Frame(outer, bd=0, bg=c["surface"])
-            card.pack(fill="x", padx=1, pady=1)
-            old = cur["old"].strip() or "(nothing)"
-            new = cur["new"].strip() or "(remove this)"
-            for text, font, fg, pady in ((old, t.f_strike, c["muted"], (t.px(10), 0)),
-                                         ("↓", t.f_small, c["faint"], (t.px(2), t.px(2))),
-                                         (new, t.f_item_bold, c["text"], (0, t.px(10)))):
-                lbl = tk.Label(card, text=text, font=font, fg=fg, bg=c["surface"], anchor="w", justify="left",
-                               wraplength=max(60, self.width - t.px(30)))
-                self.wrap_labels.append((lbl, t.px(30)))
-                lbl.pack(fill="x", padx=t.px(12), pady=pady)
-            row = tk.Frame(self.inner, bd=0, bg=c["panel"])
-            row.pack(fill="x", padx=t.px(18), pady=(t.px(10), 0))
-            FlatButton(row, t, "Accept", app.accept_prop, kind="primary", bg="panel",
-                       tip="Alt+Y").pack(side="left")
-            FlatButton(row, t, "Reject", app.reject_prop, bg="panel", tip="Alt+N").pack(
-                side="left", padx=(t.px(6), 0))
-            FlatButton(row, t, "Next ›", app.next_prop, kind="link", bg="panel", tip="F8").pack(
-                side="right")
-        else:
-            self._caption("Review suggestions", pady=(18, 6))
-            self._label(self.inner, f"{n} suggested change{'s' if n != 1 else ''} highlighted in blue. "
-                        "Click one to accept or reject it.", self.t.f_ui, wrap=0).pack(
-                fill="x", padx=t.px(18))
-            row = tk.Frame(self.inner, bd=0, bg=c["panel"])
-            row.pack(fill="x", padx=t.px(18), pady=(t.px(10), 0))
-            FlatButton(row, t, "Go to first", lambda: app.next_prop(start="1.0"), kind="soft",
-                       bg="panel").pack(side="left")
-        links = tk.Frame(self.inner, bd=0, bg=c["panel"])
-        links.pack(fill="x", padx=t.px(18), pady=(t.px(8), 0))
-        FlatButton(links, t, f"Accept all {n}", app.accept_all_props, kind="link", bg="panel").pack(side="left")
-        FlatButton(links, t, "Reject all", app.reject_all_props, kind="link", bg="panel").pack(
-            side="left", padx=(t.px(14), 0))
-        self._divider()
-
-    def _render_issue(self, issue):
-        t, c, app = self.t, self.t.c, self.app
-        self._caption("Grammar", pady=(18, 6))
-        outer = tk.Frame(self.inner, bd=0, bg=c["grammar"])
-        outer.pack(fill="x", padx=t.px(18))
+    def _change(self, old, new, edge, note=None):
+        """A card for a replacement: the old text struck out, the new text in bold, a remark below."""
+        t, c = self.t, self.t.c
+        outer = tk.Frame(self.col, bd=0, bg=c[edge])
+        outer.pack(fill="x", padx=t.px(PAD), pady=(t.px(2), 0))
         card = tk.Frame(outer, bd=0, bg=c["surface"])
         card.pack(fill="x", padx=1, pady=1)
-        fix = issue["fixes"][0] if issue["fixes"] else None
-        rows = [(issue["text"].strip() or "(space)", t.f_strike if fix is not None else t.f_item_bold, c["muted"],
-                 (t.px(10), 0))]
-        if fix is not None:
-            rows += [("↓", t.f_small, c["faint"], (t.px(2), t.px(2))),
-                     (fix.strip() or "(remove)", t.f_item_bold, c["text"], (0, 0))]
-        rows.append((issue["message"], t.f_small, c["muted"], (t.px(8), t.px(10))))
-        for text, font, fg, pady in rows:
-            lbl = tk.Label(card, text=text, font=font, fg=fg, bg=c["surface"], anchor="w", justify="left",
-                           wraplength=max(60, self.width - t.px(30)))
-            self.wrap_labels.append((lbl, t.px(30)))
-            lbl.pack(fill="x", padx=t.px(12), pady=pady)
-        row = tk.Frame(self.inner, bd=0, bg=c["panel"])
-        row.pack(fill="x", padx=t.px(18), pady=(t.px(10), 0))
-        for n, f in enumerate(issue["fixes"][:3]):
-            FlatButton(row, t, "Fix" if len(issue["fixes"]) == 1 else f.strip(), lambda n=n: app.fix_issue(n),
-                       kind="primary" if n == 0 else "soft", bg="panel").pack(side="left", padx=(0, t.px(6)))
-        FlatButton(row, t, "Ignore", app.ignore_issue, bg="panel").pack(side="left")
-        self._divider()
+        if new is None:
+            parts = [(old, t.f_item_bold, c["text"])]
+        else:
+            parts = [(old, t.f_strike, c["muted"]), ("→", t.f_small, c["faint"]), (new, t.f_item_bold, c["text"])]
+        room = self.width - t.px(18)
+        in_line = sum(font.measure(text) + t.px(6) for text, font, _ in parts) <= room  # short: old → new
+        line = tk.Frame(card, bd=0, bg=c["surface"])
+        line.pack(fill="x", padx=t.px(8), pady=(t.px(5), 0 if note else t.px(5)))
+        for text, font, fg in parts:
+            lbl = tk.Label(line, text="↓" if text == "→" and not in_line else text, font=font, fg=fg,
+                           bg=c["surface"], anchor="w", justify="left", bd=0, padx=0, wraplength=max(60, room))
+            self.wrap_labels.append((lbl, t.px(18)))
+            if in_line:
+                lbl.pack(side="left", padx=(0, t.px(6)))
+            else:
+                lbl.pack(fill="x")
+        if note:
+            lbl = tk.Label(card, text=note, font=t.f_small, fg=c["muted"], bg=c["surface"], anchor="w",
+                           justify="left", bd=0, padx=0, wraplength=max(60, room))
+            self.wrap_labels.append((lbl, t.px(18)))
+            lbl.pack(fill="x", padx=t.px(8), pady=(t.px(2), t.px(5)))
+
+    def _render_review(self, rv):
+        app = self.app
+        n, cur = rv["pending"], rv.get("current")
+        head = self._section(f"Change {cur['pos']} of {n}" if cur else "Review")
+        if cur:
+            self._tool(head, "check", app.accept_prop, "Accept this change (Alt+Y)", kind="primary")
+            self._tool(head, "close", app.reject_prop, "Reject this change (Alt+N)", gap=2)
+            self._tool(head, "next", app.next_prop, "Next change (F8)")
+        else:
+            self._tool(head, "next", lambda: app.next_prop(start="1.0", inclusive=True), "Go to the first change (F8)")
+        self._tool(head, "check-all", app.accept_all_props, f"Accept all {n} changes", gap=8)
+        self._tool(head, "trash", app.reject_all_props, "Reject all changes")
+        if cur:
+            self._change(cur["old"].strip() or "(nothing)", cur["new"].strip() or "(remove this)", "accent")
+        else:
+            self._text(f"{n} suggested change{'s' if n != 1 else ''} highlighted in blue. "
+                       "Click one to accept or reject it.", self.t.f_ui, fg="text")
+
+    def _render_issue(self, issue):
+        t, app, fixes = self.t, self.app, issue["fixes"]
+        head = self._section("Grammar")
+        if len(fixes) == 1:
+            self._tool(head, "check", app.fix_issue, "Fix it", kind="primary")
+        self._tool(head, "eye-off", app.ignore_issue, "Ignore this remark", gap=2)
+        self._change(issue["text"].strip() or "(space)", (fixes[0].strip() or "(remove)") if fixes else None,
+                     "grammar", issue["message"])
+        if len(fixes) > 1:  # several ways to fix it: one button each
+            row = tk.Frame(self.col, bd=0, bg=t.c["panel"])
+            row.pack(fill="x", padx=t.px(PAD), pady=(t.px(5), 0))
+            for n, f in enumerate(fixes[:3]):
+                FlatButton(row, t, f.strip() or "(remove)", lambda n=n: app.fix_issue(n),
+                           kind="primary" if n == 0 else "soft", bg="panel", pad=(8, 2)).pack(
+                    side="left", padx=(0, t.px(5)))
 
     def _render_tips(self):
-        self._caption("Get started", pady=(20, 8))
+        self._section("Get started")
         for head, rest in TIPS:
-            f = tk.Frame(self.inner, bd=0)
-            self.t.paint(f, bg="panel")
-            f.pack(fill="x", padx=self.t.px(18), pady=self.t.px(3))
-            lbl = self._label(f, "", self.t.f_ui, wrap=self.t.px(4))
-            lbl.configure(text=f"{head} — {rest}")
-            lbl.pack(fill="x")
-        if not self.app.engine.smart:
-            self._divider()
-            self._caption("Lite mode")
-            self._label(self.inner, "Suggestions come from the offline thesaurus only. Download the small "
-                        "context models for suggestions that understand the sentence.",
-                        self.t.f_small, fg="muted", wrap=self.t.px(0)).pack(fill="x", padx=self.t.px(18))
-            FlatButton(self.inner, self.t, "Get smart models…", self.app.open_models, kind="soft",
-                       bg="panel").pack(anchor="w", padx=self.t.px(18), pady=(self.t.px(10), 0))
+            self._text(f"{head} — {rest}", self.t.f_ui, fg="text", top=1)
+        if not self.app.engine.smart and self.app.models_state != "loading":
+            self._section("Lite mode")
+            self._text("Suggestions come from the offline thesaurus only. Download the small context models for "
+                       "suggestions that understand the sentence.")
+            FlatButton(self.col, self.t, "Get smart models…", self.app.open_models, kind="soft", bg="panel").pack(
+                anchor="w", padx=self.t.px(PAD), pady=(self.t.px(6), 0))
 
     def _render_target(self, t):
-        kind = t.get("kind", "word")
-        self._caption({"phrase": "Alternatives for this phrase", "spell": "Spelling"}.get(kind, "Alternatives for"),
-                      pady=(18, 2))
-        text = t["text"] if len(t["text"]) < 160 else t["text"][:157] + "…"
-        font = self.t.f_item_bold if kind == "phrase" else self.t.f_title
-        self._label(self.inner, text, font, fg="spell" if kind == "spell" else "text",
-                    wrap=self.t.px(0)).pack(fill="x", padx=self.t.px(18))
+        kind, app = t.get("kind", "word"), self.app
         status = t.get("status")
-        if kind == "spell" and not t.get("protected") and status != "loading":
+        spelling = kind == "spell" and not t.get("protected") and status != "loading"
+        head = self._section({"phrase": "Alternatives for this phrase", "spell": "Spelling"}.get(
+            kind, "Alternatives for"))
+        if spelling:
+            self._tool(head, "book-plus", app.add_word, "Add to dictionary: never mark this word again")
+            self._tool(head, "eye-off", lambda: app.add_word(session=True),
+                       "Ignore: leave it alone until Rewrite is closed")
+        text = t["text"] if len(t["text"]) < 160 else t["text"][:157] + "…"
+        self._text(text, self.t.f_item_bold if kind == "phrase" else self.t.f_head,
+                   fg="spell" if kind == "spell" else "text", top=0)
+        if spelling:
             self._render_spelling(t)
-            return
-        if t.get("protected"):
-            self._label(self.inner, "This part is markup (LaTeX command, maths, code or a link), so it is "
-                        "left untouched.", self.t.f_small, fg="muted",
-                        wrap=0).pack(fill="x", padx=self.t.px(18), pady=(self.t.px(8), 0))
-            return
-        if status == "loading":
-            lbl = self._label(self.inner, "Thinking", self.t.f_small, fg="muted", wrap=None)
-            lbl.pack(anchor="w", padx=self.t.px(18), pady=(self.t.px(10), 0))
-            self._animate(lbl, "Thinking")
-            return
-        if t.get("error"):
-            self._label(self.inner, t["error"], self.t.f_small, fg="danger", wrap=0).pack(
-                fill="x", padx=self.t.px(18), pady=(self.t.px(8), 0))
-            return
-        groups = t.get("groups") or [("word", t["text"], [], 0)]
-        for g, (gkind, heading, items, offset) in enumerate(groups):
-            if g > 0:
-                self._caption("Or reword the whole phrase", pady=(16, 2))
-                self._label(self.inner, heading, self.t.f_item_bold, wrap=self.t.px(0)).pack(
-                    fill="x", padx=self.t.px(18))
-            if not items:
-                msg = ("No good alternatives found here. Try selecting a longer phrase, or rephrase the whole "
-                       "sentence below.") if len(groups) == 1 else "No strong single-word alternatives here."
-                self._label(self.inner, msg, self.t.f_small, fg="muted", wrap=0).pack(
-                    fill="x", padx=self.t.px(18), pady=(self.t.px(8), 0))
-                continue
-            box = tk.Frame(self.inner, bd=0)
-            self.t.paint(box, bg="panel")
-            box.pack(fill="x", padx=self.t.px(10), pady=(self.t.px(10), 0))
-            last_note = None
-            for i, s in enumerate(items):
-                note = s.note if s.note != last_note else ""  # say each word sense only once
-                last_note = s.note or last_note
-                self._row(box, offset + i, s, note)
+        elif t.get("protected"):
+            self._text("This part is markup (LaTeX command, maths, code or a link), so it is left untouched.")
+        elif status == "loading":
+            self._animate(self._text("Thinking", top=4), "Thinking")
+        elif t.get("error"):
+            self._text(t["error"], fg="danger")
+        else:
+            groups = t.get("groups") or [("word", t["text"], [], 0)]
+            for g, (_, heading, items, offset) in enumerate(groups):
+                if g > 0:
+                    self._caption("Or reword the whole phrase", top=10)
+                    self._text(heading, self.t.f_item_bold, fg="text", top=0)
+                if items:
+                    self._rows(items, offset)
+                else:
+                    self._text("No good alternatives found here. Try selecting a longer phrase, or rephrase the "
+                               "whole sentence." if len(groups) == 1 else "No strong single-word alternatives here.")
 
     def _render_spelling(self, t):
-        """A word that is not in the dictionary: corrections, or accept the word."""
-        px = self.t.px
+        """A word that is not in the dictionary: corrections (accepting the word is in the heading)."""
         items = (t.get("groups") or [("spell", t["text"], [], 0)])[0][2]
         msg = "Not in the dictionary. Did you mean:" if items else "Not in the dictionary, and nothing similar was found."
-        self._label(self.inner, t.get("error") or msg, self.t.f_small, fg="danger" if t.get("error") else "muted",
-                    wrap=0).pack(fill="x", padx=px(18), pady=(px(6), 0))
+        self._text(t.get("error") or msg, fg="danger" if t.get("error") else "muted")
         if items:
-            box = tk.Frame(self.inner, bd=0)
-            self.t.paint(box, bg="panel")
-            box.pack(fill="x", padx=px(10), pady=(px(6), 0))
-            for i, s in enumerate(items):
-                self._row(box, i, s, s.note if i < 3 else "")
-        links = tk.Frame(self.inner, bd=0)
-        self.t.paint(links, bg="panel")
-        links.pack(fill="x", padx=px(18), pady=(px(10), 0))
-        FlatButton(links, self.t, "Add to dictionary", self.app.add_word, kind="link", bg="panel",
-                   tip="Never mark this word again").pack(side="left")
-        FlatButton(links, self.t, "Ignore", lambda: self.app.add_word(session=True), kind="link", bg="panel",
-                   tip="Leave it alone until Rewrite is closed").pack(side="left", padx=(px(14), 0))
+            self._rows(items, 0, notes=3)
 
-    def _row(self, parent, i, s, note=None):
-        note = s.note if note is None else note
-        t = self.t
-        c = t.c
+    def _rows(self, items, offset, notes=None):
+        """The list of alternatives. Each sense of the word is described once (`notes`: only on that many rows)."""
+        box = tk.Frame(self.col, bd=0)
+        self.t.paint(box, bg="panel")
+        box.pack(fill="x", pady=(self.t.px(3), 0))
+        last_note = None
+        for i, s in enumerate(items):
+            note = s.note if (s.note != last_note if notes is None else i < notes) else ""
+            last_note = s.note or last_note
+            self._row(box, offset + i, s, note)
+
+    def _row(self, parent, i, s, note):
+        t, c = self.t, self.t.c
         row = tk.Frame(parent, bd=0, cursor="hand2", bg=c["panel"])
-        row.pack(fill="x", pady=0)
+        row.pack(fill="x")
         top = tk.Frame(row, bd=0, bg=c["panel"])
-        top.pack(fill="x", padx=t.px(8), pady=(t.px(6), 0))
+        top.pack(fill="x", padx=t.px(PAD), pady=(t.px(3), 0 if note else t.px(3)))
         num = tk.Label(top, text=str(i + 1) if i < 9 else "", width=2, font=t.f_small, fg=c["faint"],
-                       bg=c["panel"], anchor="w")
+                       bg=c["panel"], anchor="w", bd=0, padx=0)
         num.pack(side="left")
         word = tk.Label(top, text=s.text, font=t.f_item, fg=c["text"], bg=c["panel"], anchor="w",
-                        justify="left", wraplength=max(60, self.width - t.px(130)))
-        self.wrap_labels.append((word, t.px(130)))
+                        justify="left", bd=0, padx=0, wraplength=max(60, self.width - t.px(112)))
+        self.wrap_labels.append((word, t.px(112)))
         word.pack(side="left", fill="x", expand=True)
         badge = self._badge(top, s.kind, c["panel"])
-        badge.pack(side="right", padx=(t.px(6), 0))
+        badge.pack(side="right", padx=(t.px(5), 0))
         bar = FitBar(top, t, s.fit, c["panel"])
-        bar.pack(side="right", padx=(t.px(6), 0))
+        bar.pack(side="right", padx=(t.px(5), 0))
         widgets = [row, top, num, word, bar]
+        lbl = None
         if note:
-            lbl = tk.Label(row, text=note, font=t.f_small, fg=c["muted"], bg=c["panel"], anchor="w",
-                           justify="left", wraplength=max(60, self.width - t.px(40)))
-            self.wrap_labels.append((lbl, t.px(40)))
-            lbl.pack(fill="x", padx=(t.px(8) + t.f_small.measure("00") + t.px(4), t.px(8)))
+            indent = t.f_small.measure("0") * 2
+            lbl = tk.Label(row, font=t.f_small, fg=c["muted"], bg=c["panel"], anchor="w", bd=0, padx=0)
+            lbl.pack(fill="x", padx=(t.px(PAD) + indent, t.px(PAD)), pady=(0, t.px(3)))
             widgets.append(lbl)
-        tk.Frame(row, height=t.px(6), bg=c["panel"]).pack(fill="x")
-        widgets.append(row.winfo_children()[-1])
 
         def hover(on):
             bg = c["hover"] if on else c["panel"]
@@ -324,61 +354,45 @@ class SuggestionPanel(tk.Frame):
             w.bind("<Enter>", lambda e: hover(True))
             w.bind("<Leave>", lambda e: hover(False))
             w.bind("<Button-1>", lambda e, n=i: self.app.apply_suggestion(n))
+        if lbl:  # after the bindings above, which the tooltip adds to
+            self.clip_labels.append((lbl, Tooltip(lbl, t, ""), note, t.f_small, indent))
+            self._clip(*self.clip_labels[-1])
 
     def _render_original(self, orig):
-        self._divider()
-        self._caption("Original text here")
-        f = tk.Frame(self.inner, bd=0)
-        self.t.paint(f, bg="panel")
-        f.pack(fill="x", padx=self.t.px(18))
+        head = self._section("Original text here")
+        self._tool(head, "revert", self.app.revert_here, "Revert to the original")
         txt = orig if orig.strip() else "(nothing — this text was added)"
-        if len(txt) > 300:
-            txt = txt[:297] + "…"
-        self._label(f, txt, self.t.f_ui, fg="muted", wrap=self.t.px(0)).pack(fill="x")
-        FlatButton(f, self.t, "Revert to original", self.app.revert_here, kind="link", bg="panel").pack(
-            anchor="w", pady=(self.t.px(6), 0))
+        self._text(txt if len(txt) <= 300 else txt[:297] + "…", self.t.f_ui, top=0)
 
     def _render_sentence(self):
-        self._divider()
-        self._sentence_head = self._caption("Whole sentence")
-        status = self.state["sentence"]
-        btns = tk.Frame(self.inner, bd=0)
-        self.t.paint(btns, bg="panel")
-        btns.pack(fill="x", padx=self.t.px(18))
-        FlatButton(btns, self.t, "Rephrase sentence", self.app.rephrase_sentence, kind="soft", bg="panel",
-                   tip="Rewrite the sentence at the cursor (Ctrl+R)").pack(side="left")
-        if status == "results":
-            FlatButton(btns, self.t, "More variations", lambda: self.app.rephrase_sentence(more=True),
-                       kind="link", bg="panel").pack(side="left", padx=(self.t.px(10), 0))
+        status, app = self.state["sentence"], self.app
+        head = self._sentence_head = self._section("Whole sentence")
+        if status in ("results", "empty"):
+            self._tool(head, "refresh", lambda: app.rephrase_sentence(more=True), "More variations")
+        self._tool(head, "pencil", app.rephrase_sentence, "Rephrase the sentence at the cursor (Ctrl+R)")
         if status == "loading":
-            lbl = self._label(self.inner, "Rewriting", self.t.f_small, fg="muted", wrap=None)
-            lbl.pack(anchor="w", padx=self.t.px(18), pady=(self.t.px(10), 0))
-            self._animate(lbl, "Rewriting")
+            self._animate(self._text("Rewriting", top=0), "Rewriting")
             return
         if status == "empty":
-            self._label(self.inner, "No rewrite kept the meaning well enough. Try “More variations”.",
-                        self.t.f_small, fg="muted", wrap=0).pack(fill="x", padx=self.t.px(18),
-                                                                  pady=(self.t.px(8), 0))
+            self._text("No rewrite kept the meaning well enough. Press ↻ for other variations.", top=0)
         if status == "nomodel":
-            self._label(self.inner, "Sentence rewriting works best with the paraphrase model "
-                        "(Models menu). Showing thesaurus-based rewrites instead.",
-                        self.t.f_small, fg="muted", wrap=0).pack(fill="x", padx=self.t.px(18),
-                                                                  pady=(self.t.px(8), 0))
+            self._text("Sentence rewriting works best with the paraphrase model (Models menu). Showing "
+                       "thesaurus-based rewrites instead.", top=0)
         for i, s in enumerate(self.state["sentences"]):
             self._card(i, s)
 
     def _card(self, i, s):
         t, c = self.t, self.t.c
-        outer = tk.Frame(self.inner, bd=0, bg=c["border"], cursor="hand2")
-        outer.pack(fill="x", padx=t.px(18), pady=(t.px(10), 0))
+        outer = tk.Frame(self.col, bd=0, bg=c["border"], cursor="hand2")
+        outer.pack(fill="x", padx=t.px(PAD), pady=(t.px(2) if i == 0 else t.px(5), 0))
         card = tk.Frame(outer, bd=0, bg=c["surface"])
         card.pack(fill="x", padx=1, pady=1)
         body = tk.Label(card, text=s.text.strip(), font=t.f_ui, fg=c["text"], bg=c["surface"], anchor="w",
-                        justify="left", wraplength=max(60, self.width - t.px(30)))
-        self.wrap_labels.append((body, t.px(30)))
-        body.pack(fill="x", padx=t.px(12), pady=(t.px(10), t.px(4)))
-        meta = tk.Label(card, text=s.note, font=t.f_small, fg=c["muted"], bg=c["surface"], anchor="w")
-        meta.pack(fill="x", padx=t.px(12), pady=(0, t.px(10)))
+                        justify="left", bd=0, padx=0, wraplength=max(60, self.width - t.px(18)))
+        self.wrap_labels.append((body, t.px(18)))
+        body.pack(fill="x", padx=t.px(8), pady=(t.px(5), t.px(1)))
+        meta = tk.Label(card, text=s.note, font=t.f_small, fg=c["muted"], bg=c["surface"], anchor="w", bd=0, padx=0)
+        meta.pack(fill="x", padx=t.px(8), pady=(0, t.px(5)))
         widgets = [card, body, meta]
 
         def hover(on):

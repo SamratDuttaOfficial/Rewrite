@@ -21,7 +21,7 @@ class Dialog(tk.Toplevel):
         self.configure(bg=self.t.c["surface"])
         self.resizable(False, False)
         self.body = tk.Frame(self, bg=self.t.c["surface"], bd=0)
-        self.body.pack(fill="both", expand=True, padx=self.t.px(28), pady=(self.t.px(24), self.t.px(20)))
+        self.body.pack(fill="both", expand=True, padx=self.t.px(18), pady=(self.t.px(14), self.t.px(14)))
         self.width = self.t.px(width)
         self.bind("<Escape>", lambda e: self.close())
         self.protocol("WM_DELETE_WINDOW", self.close)
@@ -60,13 +60,13 @@ class Dialog(tk.Toplevel):
 
     def buttons(self):
         f = tk.Frame(self.body, bg=self.t.c["surface"])
-        f.pack(fill="x", pady=(self.t.px(22), 0))
+        f.pack(fill="x", pady=(self.t.px(14), 0))
         return f
 
 
 class ModelsDialog(Dialog):
     def __init__(self, app, welcome=False):
-        super().__init__(app, "Welcome to Rewrite" if welcome else "Smart models", 560)
+        super().__init__(app, "Welcome to Rewrite" if welcome else "Smart models", 480)
         c, t = self.t.c, self.t
         self.cancel = threading.Event()
         self.running = False
@@ -75,12 +75,12 @@ class ModelsDialog(Dialog):
             "Rewrite already works offline with its built-in thesaurus and phrase book. For suggestions that "
             "actually understand the sentence, it can use three small models (22M to 220M parameters) that "
             "run on your CPU."),
-            fg="muted").pack(fill="x", pady=(t.px(8), t.px(14)))
+            fg="muted").pack(fill="x", pady=(t.px(4), t.px(8)))
         self.vars = {}
         runtime = models.runtime_available()
         for key, spec in models.MODELS.items():
             row = tk.Frame(self.body, bg=c["surface"])
-            row.pack(fill="x", pady=t.px(5))
+            row.pack(fill="x", pady=t.px(3))
             have = models.present(key)
             v = tk.BooleanVar(value=not have)
             self.vars[key] = v
@@ -101,9 +101,9 @@ class ModelsDialog(Dialog):
             self.label(self.body, (
                 "The model runtime (onnxruntime) is not installed in this Python. Close Rewrite and start it "
                 "with  python run.py  — it installs everything automatically."), fg="danger").pack(
-                fill="x", pady=(t.px(12), 0))
+                fill="x", pady=(t.px(8), 0))
         self.status = self.label(self.body, "", t.f_small, fg="muted")
-        self.status.pack(fill="x", pady=(t.px(14), t.px(4)))
+        self.status.pack(fill="x", pady=(t.px(8), t.px(3)))
         self.bar = ttk.Progressbar(self.body, mode="determinate", maximum=1000)
         self.bar.pack(fill="x")
         self.bar.pack_forget()
@@ -111,7 +111,7 @@ class ModelsDialog(Dialog):
         self.go = FlatButton(b, t, "Download", self.start, kind="primary", bg="surface")
         self.go.pack(side="right")
         self.later = FlatButton(b, t, "Not now" if welcome else "Close", self.close, bg="surface")
-        self.later.pack(side="right", padx=(0, t.px(8)))
+        self.later.pack(side="right", padx=(0, t.px(6)))
         self._update_total()
         if not runtime:
             self.go.set_enabled(False)
@@ -200,58 +200,58 @@ class AutoRewriteDialog(Dialog):
     }
 
     def __init__(self, app, has_selection, on_run):
-        super().__init__(app, "Auto-rewrite", 520)
+        super().__init__(app, "Auto-rewrite", 440)
         c, t = self.t.c, self.t
         self.on_run = on_run
         self.label(self.body, "Auto-rewrite", t.f_title).pack(fill="x")
         self.label(self.body, "Replace everything in one go, or just highlight the suggested changes and "
                               "accept or reject them one by one.", fg="muted").pack(
-            fill="x", pady=(t.px(6), t.px(16)))
+            fill="x", pady=(t.px(4), t.px(10)))
 
         self.label(self.body, "APPLY TO", t.f_tiny, fg="faint").pack(fill="x")
         self.scope = tk.StringVar(value="selection" if has_selection else "document")
         sc = tk.Frame(self.body, bg=c["surface"])
-        sc.pack(fill="x", pady=(t.px(4), t.px(14)))
+        sc.pack(fill="x", pady=(t.px(2), t.px(8)))
         r1 = ttk.Radiobutton(sc, text="Selected text", value="selection", variable=self.scope)
         r1.pack(side="left")
         if not has_selection:
             r1.state(["disabled"])
         ttk.Radiobutton(sc, text="Whole document", value="document", variable=self.scope).pack(
-            side="left", padx=(t.px(16), 0))
+            side="left", padx=(t.px(12), 0))
 
         self.label(self.body, "STRENGTH", t.f_tiny, fg="faint").pack(fill="x")
         seg = tk.Frame(self.body, bg=c["border"])
-        seg.pack(anchor="w", pady=(t.px(6), t.px(6)))
+        seg.pack(anchor="w", pady=(t.px(4), t.px(4)))
         self.strength = "medium"
         self.seg_btns = {}
         for name in ("light", "medium", "strong"):
-            b = tk.Label(seg, text=name.capitalize(), font=t.f_ui, padx=t.px(18), pady=t.px(5), cursor="hand2")
+            b = tk.Label(seg, text=name.capitalize(), font=t.f_ui, padx=t.px(12), pady=t.px(3), cursor="hand2")
             b.pack(side="left", padx=(0 if name == "light" else 1, 0), pady=1)
             b.bind("<Button-1>", lambda e, n=name: self.set_strength(n))
             self.seg_btns[name] = b
         self.desc = self.label(self.body, "", t.f_small, fg="muted")
-        self.desc.pack(fill="x", pady=(0, t.px(14)))
+        self.desc.pack(fill="x", pady=(0, t.px(8)))
 
-        self.label(self.body, "WHAT TO CHANGE", t.f_tiny, fg="faint").pack(fill="x", pady=(0, t.px(4)))
+        self.label(self.body, "WHAT TO CHANGE", t.f_tiny, fg="faint").pack(fill="x", pady=(0, t.px(2)))
         self.o_phr = tk.BooleanVar(value=True)
         self.o_words = tk.BooleanVar(value=True)
         self.o_sent = tk.BooleanVar(value=False)
         ttk.Checkbutton(self.body, text="Reword wordy / common phrases", variable=self.o_phr).pack(anchor="w")
         ttk.Checkbutton(self.body, text="Swap words for synonyms that fit the context",
-                        variable=self.o_words).pack(anchor="w", pady=t.px(2))
+                        variable=self.o_words).pack(anchor="w")
         self.cb_sent = ttk.Checkbutton(self.body, text="Rephrase whole sentences (paraphrase model)",
                                        variable=self.o_sent)
         self.cb_sent.pack(anchor="w")
         if not app.engine.t5:
             self.cb_sent.state(["disabled"])
         self.label(self.body, "Markup, maths, code, citations and links are never changed.", t.f_small,
-                   fg="faint").pack(fill="x", pady=(t.px(12), 0))
+                   fg="faint").pack(fill="x", pady=(t.px(8), 0))
         b = self.buttons()
         FlatButton(b, t, "Replace all", lambda: self.run("all"), kind="primary", bg="surface",
                    tip="Apply every change now (one undo step)").pack(side="right")
         FlatButton(b, t, "Highlight to review", lambda: self.run("review"), kind="soft", bg="surface",
                    tip="Mark the changes; click each one to accept or reject it").pack(
-            side="right", padx=(0, t.px(8)))
+            side="right", padx=(0, t.px(6)))
         FlatButton(b, t, "Cancel", self.close, bg="surface").pack(side="left")
         self.set_strength("medium")
         self.bind("<Return>", lambda e: self.run("review"))
@@ -281,12 +281,14 @@ Open a file (txt, md, tex, docx, odt, pdf, rtf, html, code …), drop one on the
 
 •  Click any word — the panel shows alternatives ranked by how well they fit that exact sentence. Click one (or press Alt+1 … Alt+9) to swap it in. Case and word form (plural, past tense …) are matched automatically.
 •  Select a phrase — you get phrase-level rewrites: phrase-book equivalents, one-word swaps and model paraphrases.
-•  {MOD}+R — rephrase the whole sentence at the cursor. Each option shows how much meaning is kept and how much was reworded. “More variations” samples new ones.
+•  {MOD}+R — rephrase the whole sentence at the cursor. Each option shows how much meaning is kept and how much was reworded. ↻ next to “Whole sentence” samples more variations.
 •  Auto-rewrite ({MOD}+Shift+R) — a pass over the selection or the whole document at light / medium / strong strength. “Replace all” applies everything at once; “Highlight to review” marks the changes in blue so you can click each one and Accept (Alt+Y) or Reject (Alt+N); F8 jumps to the next one.
-•  Show changes — highlights everything that differs from the original text. Click a highlighted part to see the original and revert it.
-•  Phrase hints — underlines wordy or common phrases that have ready-made alternatives.
-•  Spelling and grammar — a red underline marks a word that is not in the dictionary, a blue one a grammar slip (agreement, verb form, a/an, easily confused words). Click the word to see the fix, or right-click it. “Add to dictionary” and “Ignore” stop a word from being marked. Both checks can be switched off in the View menu.
-•  Preview ({MOD}+P) — opens a second panel on the right that shows the document as it will look. Markdown follows as you type; LaTeX is compiled to a PDF every time you save (it needs a LaTeX installation such as MiKTeX, MacTeX or TeX Live). ↻ or F5 refreshes or rebuilds at any time. While the preview is open, the suggestions move below the text.
+•  Show changes (± in the toolbar) — highlights everything that differs from the original text. Click a highlighted part to see the original and revert it.
+•  Phrase hints (the light bulb) — underlines wordy or common phrases that have ready-made alternatives.
+•  Spelling and grammar — a red underline marks a word that is not in the dictionary, a blue one a grammar slip (agreement, verb form, a/an, easily confused words). Click the word to see the fix, or right-click it. The two buttons next to “Spelling” add the word to your dictionary or ignore it, so it is no longer marked. Both checks can be switched off in the View menu.
+•  Preview (the eye, {MOD}+P) — opens a second panel on the right that shows the document as it will look. Markdown follows as you type; LaTeX is compiled to a PDF every time you save (it needs a LaTeX installation such as MiKTeX, MacTeX or TeX Live). ↻ or F5 refreshes or rebuilds at any time. While the preview is open, the suggestions move below the text.
+
+The buttons are icons: rest the mouse on one to see what it does. The status bar at the bottom shows the file format (click it to change which parts are protected) and whether the smart models are loaded.
 
 Markup is protected: LaTeX commands, maths, citations and references, Markdown code and links, HTML tags, and (in source files) everything except comments stay untouched and are shown dimmed.
 
@@ -313,26 +315,26 @@ Rewrite {__version__} · created by {__author__} · {__url__}"""
 
 class HelpDialog(Dialog):
     def __init__(self, app):
-        super().__init__(app, "How to use Rewrite", 620)
+        super().__init__(app, "How to use Rewrite", 560)
         c, t = self.t.c, self.t
         box = tk.Frame(self.body, bg=c["surface"], bd=0)
         box.pack(fill="both", expand=True)
         # the text is longer than a small screen is tall, so it scrolls
-        lines = max(14, min(28, (app.root.winfo_screenheight() - t.px(260)) // t.f_ui.metrics("linespace")))
+        lines = max(14, min(30, (app.root.winfo_screenheight() - t.px(260)) // t.f_ui.metrics("linespace")))
         txt = tk.Text(box, wrap="word", bd=0, highlightthickness=0, bg=c["surface"], fg=c["text"],
-                      font=t.f_ui, width=76, height=lines, padx=0, pady=0, spacing1=t.px(1), spacing3=t.px(3))
+                      font=t.f_ui, width=84, height=lines, padx=0, pady=0, spacing1=0, spacing3=t.px(2))
         sb = ttk.Scrollbar(box, orient="vertical", command=txt.yview)
         txt.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y", padx=(t.px(8), 0))
+        sb.pack(side="right", fill="y", padx=(t.px(6), 0))
         txt.pack(side="left", fill="both", expand=True)
         txt.insert("1.0", HELP)
         txt.tag_add("h", "1.0", "1.end")
-        txt.tag_configure("h", font=t.f_title, spacing3=t.px(10))
+        txt.tag_configure("h", font=t.f_title, spacing3=t.px(6))
         for head in ("Badges", "Keyboard"):
             idx = txt.search(head, "1.0", "end")
             if idx:
                 txt.tag_add("b", idx, f"{idx} lineend")
-        txt.tag_configure("b", font=t.f_ui_bold, spacing1=t.px(8))
+        txt.tag_configure("b", font=t.f_ui_bold, spacing1=t.px(5))
         txt.configure(state="disabled")
         b = self.buttons()
         FlatButton(b, t, "Close", self.close, kind="primary", bg="surface").pack(side="right")
