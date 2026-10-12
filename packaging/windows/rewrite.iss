@@ -4,7 +4,7 @@
   #define Version "1.0.0"
 #endif
 #ifndef Src
-  #define Src "..\..\dist\Rewrite"
+  #define Src "..\..\build\app\Rewrite"
 #endif
 #ifndef OutDir
   #define OutDir "..\..\dist\installers"

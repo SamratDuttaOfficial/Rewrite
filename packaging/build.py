@@ -7,7 +7,9 @@ macOS    dist/installers/Rewrite-<ver>-macOS-<arch>.dmg
 Linux    dist/installers/rewrite_<ver>_<arch>.deb              (needs dpkg-deb)
          dist/installers/Rewrite-<ver>-<arch>.AppImage        (needs appimagetool on PATH or in $APPIMAGETOOL)
 
-The app is frozen with PyInstaller in a private build environment (build/venv).
+The app is frozen with PyInstaller in a private build environment (build/venv). The unpacked app is only
+an intermediate step: it is made in build/app and removed once the installers exist, so dist/ holds
+nothing but the installers.
 Installers can only be built on their own OS. .github/workflows/installers.yml builds all three.
 """
 import glob
@@ -22,8 +24,8 @@ import venv
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 BUILD = os.path.join(ROOT, "build")
-DIST = os.path.join(ROOT, "dist")
-OUT = os.path.join(DIST, "installers")
+APP = os.path.join(BUILD, "app")  # the frozen app; deleted again at the end of the build
+OUT = os.path.join(ROOT, "dist", "installers")
 ASSETS = os.path.join(ROOT, "rewrite", "assets")
 
 sys.path.insert(0, ROOT)
@@ -89,10 +91,10 @@ def build_python():
 
 
 def freeze(py):
-    run(py, "-m", "PyInstaller", "--noconfirm", "--clean", "--log-level", "WARN", "--distpath", DIST,
+    run(py, "-m", "PyInstaller", "--noconfirm", "--clean", "--log-level", "WARN", "--distpath", APP,
         "--workpath", os.path.join(BUILD, "pyinstaller"), os.path.join(HERE, "rewrite.spec"))
     # Run the frozen app once so a missing module fails the build, not the user.
-    exe = os.path.join(DIST, "Rewrite", "Rewrite.exe" if os.name == "nt" else "Rewrite")
+    exe = os.path.join(APP, "Rewrite", "Rewrite.exe" if os.name == "nt" else "Rewrite")
     log = os.path.join(BUILD, "selftest.log")
     code = subprocess.call([exe, "--selftest", log])
     with open(log, encoding="utf-8") as f:
@@ -111,21 +113,21 @@ def iscc():
 
 
 def windows():
-    run(iscc(), "/Q", f"/DVersion={VERSION}", f"/DSrc={os.path.join(DIST, 'Rewrite')}", f"/DOutDir={OUT}",
+    run(iscc(), "/Q", f"/DVersion={VERSION}", f"/DSrc={os.path.join(APP, 'Rewrite')}", f"/DOutDir={OUT}",
         f"/DIcon={os.path.join(BUILD, 'rewrite.ico')}", os.path.join(HERE, "windows", "rewrite.iss"))
 
 
 def macos():
     stage = os.path.join(BUILD, "dmg")
     shutil.rmtree(stage, ignore_errors=True)
-    shutil.copytree(os.path.join(DIST, "Rewrite.app"), os.path.join(stage, "Rewrite.app"), symlinks=True)
+    shutil.copytree(os.path.join(APP, "Rewrite.app"), os.path.join(stage, "Rewrite.app"), symlinks=True)
     os.symlink("/Applications", os.path.join(stage, "Applications"))
     dmg = os.path.join(OUT, f"Rewrite-{VERSION}-macOS-{platform.machine()}.dmg")
     run("hdiutil", "create", "-volname", "Rewrite", "-srcfolder", stage, "-ov", "-format", "UDZO", dmg)
 
 
 def linux():
-    app, machine = os.path.join(DIST, "Rewrite"), platform.machine()
+    app, machine = os.path.join(APP, "Rewrite"), platform.machine()
     icon = os.path.join(ASSETS, "icon256.png")
     if shutil.which("dpkg-deb"):
         arch = {"x86_64": "amd64", "aarch64": "arm64"}.get(machine, machine)
@@ -179,6 +181,7 @@ def main():
     freeze(build_python())
     os.makedirs(OUT, exist_ok=True)
     {"win32": windows, "darwin": macos}.get(sys.platform, linux)()
+    shutil.rmtree(APP, ignore_errors=True)
     print("\nDone:", *sorted(glob.glob(os.path.join(OUT, "*"))), sep="\n  ")
 
 
