@@ -9,6 +9,10 @@ from .. import __author__, __url__, __version__, models
 from .widgets import FlatButton
 
 MOD = "Cmd" if sys.platform == "darwin" else "Ctrl"
+if sys.platform == "darwin":  # Cmd+H hides the app on a Mac, and Cmd+G is find next there
+    KEY_REPLACE, KEYS_REPLACE, KEY_NEXT, KEY_PREV = "Cmd+R", "Cmd+R", "Cmd+G", "Cmd+Shift+G"
+else:
+    KEY_REPLACE, KEYS_REPLACE, KEY_NEXT, KEY_PREV = "Ctrl+H", "Ctrl+H or Ctrl+R", "F3", "Shift+F3"
 
 
 class Dialog(tk.Toplevel):
@@ -281,11 +285,12 @@ Open a file (txt, md, tex, docx, odt, pdf, rtf, html, code …), drop one on the
 
 •  Click any word — the panel shows alternatives ranked by how well they fit that exact sentence. Click one (or press Alt+1 … Alt+9) to swap it in. Case and word form (plural, past tense …) are matched automatically.
 •  Select a phrase — you get phrase-level rewrites: phrase-book equivalents, one-word swaps and model paraphrases.
-•  {MOD}+R — rephrase the whole sentence at the cursor. Each option shows how much meaning is kept and how much was reworded. ↻ next to “Whole sentence” samples more variations.
+•  {MOD}+E — rephrase the whole sentence at the cursor. Each option shows how much meaning is kept and how much was reworded. ↻ next to “Whole sentence” samples more variations.
 •  Auto-rewrite ({MOD}+Shift+R) — a pass over the selection or the whole document at light / medium / strong strength. “Replace all” applies everything at once; “Highlight to review” marks the changes in blue so you can click each one and Accept (Alt+Y) or Reject (Alt+N); F8 jumps to the next one.
 •  Show changes (± in the toolbar) — highlights everything that differs from the original text. Click a highlighted part to see the original and revert it.
 •  Phrase hints (the light bulb) — underlines wordy or common phrases that have ready-made alternatives.
 •  Spelling and grammar — a red underline marks a word that is not in the dictionary, a blue one a grammar slip (agreement, verb form, a/an, easily confused words). Click the word to see the fix, or right-click it. The two buttons next to “Spelling” add the word to your dictionary or ignore it, so it is no longer marked. Both checks can be switched off in the View menu.
+•  Find and replace ({MOD}+F; {KEYS_REPLACE} opens it with replace) — a bar above the text finds as you type. Enter or {KEY_NEXT} goes to the next match, Shift+Enter or {KEY_PREV} to the previous one, Esc closes the bar. Aa matches upper and lower case, ab finds whole words only, .* takes a regular expression (\\1 in the replacement puts back the first group). “Replace all” is undone with one {MOD}+Z.
 •  Preview (the eye, {MOD}+P) — opens a second panel on the right that shows the document as it will look. Markdown follows as you type; LaTeX is compiled to a PDF every time you save (it needs a LaTeX installation such as MiKTeX, MacTeX or TeX Live). ↻ or F5 refreshes or rebuilds at any time. While the preview is open, the suggestions move below the text.
 
 The buttons are icons: rest the mouse on one to see what it does. The status bar at the bottom shows the file format (click it to change which parts are protected) and whether the smart models are loaded.
@@ -302,7 +307,8 @@ Badges
 Keyboard
   {MOD}+O open   {MOD}+S save   {MOD}+Shift+S save as   {MOD}+N new
   {MOD}+Z undo   {MOD}+Y / {MOD}+Shift+Z redo
-  {MOD}+Space  suggestions at cursor   {MOD}+R rephrase sentence
+  {MOD}+F find   {KEYS_REPLACE} replace   {KEY_NEXT} / {KEY_PREV} next / previous match
+  Ctrl+Space  suggestions at cursor   {MOD}+E rephrase sentence
   {MOD}+=  / {MOD}+-  text size   {MOD}+0 reset size
   {MOD}+P  preview panel   F5 refresh preview / rebuild PDF
 

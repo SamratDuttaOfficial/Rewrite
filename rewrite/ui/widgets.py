@@ -10,16 +10,19 @@ class FlatButton(tk.Label):
     With icon=, a picture comes before the text; see IconButton for buttons without text."""
 
     def __init__(self, parent, theme, text="", command=None, kind="ghost", tip=None, bg="bg", font=None,
-                 icon=None, pad=None, size=16, **kw):
+                 icon=None, pad=None, size=16, box=False, **kw):
         self.t, self.kind, self.command, self.bg_key = theme, kind, command, bg
         self.fg_key = None
         self.enabled = True
         self.icon, self.icon_size, self._img = icon, size, None
-        padx, pady = pad or ((2, 1) if kind == "link" else (5, 5) if icon and not text else (9, 4))
+        square = box or (icon and not text)  # as big as an icon button; box= does this for a short text
+        padx, pady = pad or ((2, 1) if kind == "link" else (5, 5) if square else (9, 4))
         if icon and text:
             kw.update(compound="left", text=" " + text)
-        elif icon:  # Tk ignores padx/pady on a label that is only a picture: give it its size instead
+        elif square:  # Tk ignores padx/pady on a label that shows a picture: give it its size instead
             kw.update(width=theme.px(size) + 2 * theme.px(padx), height=theme.px(size) + 2 * theme.px(pady))
+            if not icon:  # over a blank picture, so that the size above is in pixels
+                kw.update(text=text, image=theme.blank, compound="center")
         else:
             kw.update(text=text)
         super().__init__(parent, cursor="hand2", font=font or theme.f_ui, padx=theme.px(padx), pady=theme.px(pady),
@@ -76,18 +79,18 @@ class IconButton(FlatButton):
         super().__init__(parent, theme, "", command, tip=tip, icon=icon, **kw)
 
 
-class Toggle(IconButton):
-    """An icon button that stays lit while its setting is on."""
+class Toggle(FlatButton):
+    """A button that stays lit while its setting is on: an icon, or with text= a short label such as "Aa"."""
 
-    def __init__(self, parent, theme, icon, value=False, command=None, tip=None):
+    def __init__(self, parent, theme, icon=None, value=False, command=None, tip=None, text="", **kw):
         self.value, self.on_change = value, command
-        super().__init__(parent, theme, icon, self._toggle, tip=tip)
+        super().__init__(parent, theme, text, self._toggle, tip=tip, icon=icon, box=not icon, **kw)
 
     def _colors(self):
         c = self.t.c
         if self.value:
             return (c["flash"] if self._hover else c["accent_soft"]), c["accent"]
-        return (c["hover"] if self._hover else c["bg"]), c["muted"]
+        return (c["hover"] if self._hover else c[self.bg_key]), c["muted"]
 
     def _toggle(self):
         self.set(not self.value)

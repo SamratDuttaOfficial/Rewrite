@@ -1,6 +1,7 @@
 """Side panel: alternatives for the current word or phrase, proofreading remarks and sentence rewrites."""
 import tkinter as tk
 
+from .dialogs import MOD
 from .widgets import FitBar, FlatButton, IconButton, ScrollFrame, Tooltip
 
 PAD = 10  # margin left and right of the content
@@ -9,7 +10,7 @@ WIDE = 480  # from this width on (the panel below the editor) there is room for 
 TIPS = [
     ("Click a word", "to see alternatives that fit its context."),
     ("Select a phrase", "(2+ words) for phrase-level rewrites."),
-    ("Ctrl+R", "rephrases the whole sentence at the cursor."),
+    (f"{MOD}+E", "rephrases the whole sentence at the cursor."),
     ("Alt+1 … Alt+9", "applies a suggestion without the mouse."),
     ("Auto-rewrite", "does a pass over the selection or the whole document."),
     ("Red / blue underlines", "mark spelling and grammar slips; click one to fix it."),
@@ -369,7 +370,7 @@ class SuggestionPanel(tk.Frame):
         head = self._sentence_head = self._section("Whole sentence")
         if status in ("results", "empty"):
             self._tool(head, "refresh", lambda: app.rephrase_sentence(more=True), "More variations")
-        self._tool(head, "pencil", app.rephrase_sentence, "Rephrase the sentence at the cursor (Ctrl+R)")
+        self._tool(head, "pencil", app.rephrase_sentence, f"Rephrase the sentence at the cursor ({MOD}+E)")
         if status == "loading":
             self._animate(self._text("Rewriting", top=0), "Rewriting")
             return

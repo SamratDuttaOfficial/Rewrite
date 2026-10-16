@@ -39,9 +39,10 @@ Lite mode with the built-in thesaurus.
 | To | Do this |
 |---|---|
 | See alternatives | Click a word, or select a phrase |
-| Rephrase a sentence | **Ctrl+R** |
+| Rephrase a sentence | **Ctrl+E** |
 | Rewrite a selection or the whole document | **Ctrl+Shift+R** |
 | Fix a spelling or grammar slip | Click the underlined word |
+| Find and replace | **Ctrl+F**, **Ctrl+H** (or **Ctrl+R**); **F3** finds the next match |
 | Open a file | **Ctrl+O**, or drop it on the window |
 | Preview Markdown or LaTeX | **Ctrl+P**; **F5** rebuilds |
 

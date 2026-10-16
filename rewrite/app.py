@@ -1,5 +1,6 @@
 """Rewrite - main window."""
 import bisect
+import contextlib
 import difflib
 import os
 import queue
@@ -15,7 +16,8 @@ from . import __author__, __url__, __version__, formats, models, phrases, proof
 from .engine import Engine
 from .lane import Lane
 from .textutil import WORD_RE, sentence_bounds
-from .ui.dialogs import MOD, AutoRewriteDialog, HelpDialog, ModelsDialog
+from .ui.dialogs import KEY_NEXT, KEY_PREV, KEY_REPLACE, MOD, AutoRewriteDialog, HelpDialog, ModelsDialog
+from .ui.findbar import FindBar
 from .ui.panel import SuggestionPanel
 from .ui.preview import PreviewPanel
 from .ui.theme import Theme
@@ -264,9 +266,11 @@ class App:
         self._sep(bar)
         IconButton(bar, t, "undo", self.undo, f"Undo ({MOD}+Z)").pack(side="left")
         IconButton(bar, t, "redo", self.redo, f"Redo ({MOD}+Y)").pack(side="left")
+        IconButton(bar, t, "search", lambda: self.find.open(),
+                   f"Find and replace ({MOD}+F, {KEY_REPLACE})").pack(side="left")
         self._sep(bar)
         IconButton(bar, t, "pencil", self.rephrase_sentence,
-                   f"Rephrase the sentence at the cursor ({MOD}+R)").pack(side="left")
+                   f"Rephrase the sentence at the cursor ({MOD}+E)").pack(side="left")
         FlatButton(bar, t, "Auto-rewrite…", self.auto_rewrite, kind="primary", icon="wand", pad=(8, 5),
                    tip=f"Rewrite the selection or the whole document ({MOD}+Shift+R)").pack(
             side="left", padx=(t.px(4), 0))
@@ -302,6 +306,7 @@ class App:
         self.text.configure(yscrollcommand=self._on_scroll)
         self.vsb.pack(side="right", fill="y")
         self.text.pack(side="left", fill="both", expand=True)
+        self.find = FindBar(ed, self)  # shown above the text by Ctrl+F
         self.color_editor()
         self.panel_frame = tk.Frame(r, bd=0, width=t.px(320), height=t.px(220))
         self.panel_frame.pack_propagate(False)
@@ -467,6 +472,7 @@ class App:
         pad = max(self.theme.px(18), (width - col) // 2)
         if int(str(self.text.cget("padx"))) != pad:
             self.text.configure(padx=pad)
+        self.find.align(pad)
 
     def color_editor(self):
         c, t = self.theme.c, self.text
@@ -479,12 +485,13 @@ class App:
         t.tag_configure("prop", background=c["proposal"], underline=True)
         t.tag_configure("target", background=c["target"])
         t.tag_configure("flash", background=c["flash"])
+        t.tag_configure("found", background=c["found"])
         for tag, key in (("gram", "grammar"), ("spell", "spell")):
             try:
                 t.tag_configure(tag, underline=True, underlinefg=c[key])
             except tk.TclError:  # Tk older than 8.6.6 cannot colour underlines
                 t.tag_configure(tag, underline=True, foreground=c[key])
-        for tag in ("hint", "chg", "gram", "spell", "prop", "target", "flash"):
+        for tag in ("hint", "chg", "gram", "spell", "prop", "found", "target", "flash"):
             t.tag_raise(tag)
         t.tag_raise("sel")
 
@@ -516,11 +523,16 @@ class App:
         e.add_command(label="Paste", command=lambda: self.text.event_generate("<<Paste>>"))
         e.add_command(label="Select all", accelerator=f"{acc}+A", command=self.select_all)
         e.add_separator()
+        e.add_command(label="Find…", accelerator=f"{acc}+F", command=lambda: self.find.open())
+        e.add_command(label="Replace…", accelerator=KEY_REPLACE, command=lambda: self.find.open(replace=True))
+        e.add_command(label="Find next", accelerator=KEY_NEXT, command=lambda: self.find.next())
+        e.add_command(label="Find previous", accelerator=KEY_PREV, command=lambda: self.find.next(back=True))
+        e.add_separator()
         e.add_command(label="Use current text as the original", command=self.mark_original)
         e.add_command(label="Revert everything to the original", command=self.revert_all)
         w = menu("Rewrite")
         w.add_command(label="Suggestions at cursor", accelerator="Ctrl+Space", command=self.popup_at_cursor)
-        w.add_command(label="Rephrase sentence", accelerator=f"{acc}+R", command=self.rephrase_sentence)
+        w.add_command(label="Rephrase sentence", accelerator=f"{acc}+E", command=self.rephrase_sentence)
         w.add_command(label="Auto-rewrite…", accelerator=f"{acc}+Shift+R", command=self.auto_rewrite)
         v = menu("View")
         v.add_command(label="Zoom in", accelerator=f"{acc}+=", command=lambda: self.zoom(1))
@@ -564,7 +576,17 @@ class App:
         both(f"<{K}-S>", lambda: self.save(as_=True))
         both(f"<{K}-Shift-s>", lambda: self.save(as_=True))
         both(f"<{K}-n>", self.new_file)
-        both(f"<{K}-r>", self.rephrase_sentence)
+        both(f"<{K}-e>", self.rephrase_sentence)
+        both(f"<{K}-f>", self.find.open)
+        both(f"<{K}-r>", lambda: self.find.open(replace=True))
+        if sys.platform == "darwin":  # Cmd+H hides the app; Cmd+G finds the next match
+            both("<Command-g>", self.find.next)
+            both("<Command-G>", lambda: self.find.next(back=True))
+            both("<Command-Shift-g>", lambda: self.find.next(back=True))
+        else:
+            both(f"<{K}-h>", lambda: self.find.open(replace=True))
+            both("<F3>", self.find.next)
+            both("<Shift-F3>", lambda: self.find.next(back=True))
         both(f"<{K}-R>", self.auto_rewrite)
         both(f"<{K}-Shift-r>", self.auto_rewrite)
         both(f"<{K}-y>", self.redo)
@@ -596,13 +618,19 @@ class App:
         t.bind("<<Modified>>", self.on_modified)
         t.bind("<KeyRelease>", self._on_key)
         t.bind("<ButtonRelease-1>", lambda e: self.later("target", 60, self.update_target))
-        t.bind("<<Selection>>", lambda e: self.later("target", 280, self.update_target))
+        t.bind("<<Selection>>", self._on_selection)
+        t.bind("<Escape>", lambda e: (self.find.close(), "break")[1] if self.find.visible else None)
         t.bind("<<Paste>>", self._on_paste, add="+")
         if sys.platform == "darwin":
             t.bind("<Button-2>", self.context_menu)
             t.bind("<Control-Button-1>", self.context_menu)
         else:
             t.bind("<Button-3>", self.context_menu)
+
+    def _on_selection(self, _=None):
+        self.later("target", 280, self.update_target)
+        if self.find.visible:
+            self.find.show_count()
 
     def _on_key(self, e):
         if e.keysym in ("Shift_L", "Shift_R", "Control_L", "Control_R", "Alt_L", "Alt_R", "Meta_L", "Meta_R"):
@@ -798,6 +826,8 @@ class App:
         self.proofread(snap)
         if self.preview_on:
             self.preview.text_changed()
+        if self.find.visible:
+            self.find.search()
 
     def _retag(self, tag, spans, snap):
         self.text.tag_remove(tag, "1.0", "end")
@@ -827,6 +857,8 @@ class App:
 
     def _on_scroll(self, first, last):
         self.vsb.set(first, last)
+        if self.find.visible:
+            self.later("find-view", 80, self.find.paint)
         if self._proof_more:  # a long text is checked around the view; follow it
             self.later("proof-view", 600, self._proof_view)
 
@@ -1139,6 +1171,18 @@ class App:
             self.text.tag_add("sel", snap.index(s), snap.index(s + len(sug.text)))
         self.later("target", 30, self.update_target)
 
+    @contextlib.contextmanager
+    def one_step(self):
+        """Make the edits inside one step for undo. With automatic separators, Tk would split a delete
+        and the insert after it, and one Ctrl+Z would leave the text with the old words gone."""
+        self.text.configure(autoseparators=False)
+        self.text.edit_separator()
+        try:
+            yield
+        finally:
+            self.text.edit_separator()
+            self.text.configure(autoseparators=True)
+
     def replace(self, s, e, expected, new, select=False):
         snap = self.refresh_snapshot()
         if snap.text[s:e] != expected:
@@ -1146,10 +1190,9 @@ class App:
             self.flash_msg("The text changed — click the word again.")
             return False
         i1, i2 = snap.index(s), snap.index(e)
-        self.text.edit_separator()
-        self.text.delete(i1, i2)
-        self.text.insert(i1, new)
-        self.text.edit_separator()
+        with self.one_step():
+            self.text.delete(i1, i2)
+            self.text.insert(i1, new)
         self.snap_dirty = True
         snap = self.refresh_snapshot()
         j1, j2 = snap.index(s), snap.index(s + len(new))
@@ -1175,10 +1218,9 @@ class App:
             return
         if messagebox.askyesno("Revert everything", "Replace the text with the original version? "
                                "(You can undo this.)", parent=self.root):
-            self.text.edit_separator()
-            self.text.delete("1.0", "end")
-            self.text.insert("1.0", self.original)
-            self.text.edit_separator()
+            with self.one_step():
+                self.text.delete("1.0", "end")
+                self.text.insert("1.0", self.original)
 
     def mark_original(self):
         self.original = self.refresh_snapshot().text
@@ -1314,13 +1356,10 @@ class App:
                            "click one to accept or reject it.", 9000)
             self.next_prop(start="1.0", inclusive=True)
             return
-        self.text.configure(autoseparators=False)
-        self.text.edit_separator()
-        for s, e, new, _whole in sorted(edits, reverse=True):
-            self.text.delete(snap.index(s), snap.index(e))
-            self.text.insert(snap.index(s), new)
-        self.text.edit_separator()
-        self.text.configure(autoseparators=True)
+        with self.one_step():
+            for s, e, new, _whole in sorted(edits, reverse=True):
+                self.text.delete(snap.index(s), snap.index(e))
+                self.text.insert(snap.index(s), new)
         self.snap_dirty = True
         if not self.settings.get("show_changes", True):
             self.t_changes.set(True)
@@ -1428,10 +1467,9 @@ class App:
             self._drop_prop(pid)
             self.flash_msg("That text was edited, so its suggestion was dropped.")
         else:
-            self.text.edit_separator()
-            self.text.delete(i1, i2)
-            self.text.insert(i1, p["new"], ())
-            self.text.edit_separator()
+            with self.one_step():
+                self.text.delete(i1, i2)
+                self.text.insert(i1, p["new"], ())
             self._drop_prop(pid)
             end = self.text.index(f"{i1}+{len(p['new'])}c")
             self.text.tag_remove("flash", "1.0", "end")
@@ -1455,18 +1493,15 @@ class App:
     def accept_all_props(self):
         if self.busy or not self.proposals:
             return
-        self.text.configure(autoseparators=False)
-        self.text.edit_separator()
         n = 0
-        for pid in reversed(self._prop_order()):  # back to front keeps earlier positions valid
-            p = self.proposals[pid]
-            i1, i2 = self._prop_range(pid)
-            if self.text.get(i1, i2) == p["old"]:
-                self.text.delete(i1, i2)
-                self.text.insert(i1, p["new"], ())
-                n += 1
-        self.text.edit_separator()
-        self.text.configure(autoseparators=True)
+        with self.one_step():
+            for pid in reversed(self._prop_order()):  # back to front keeps earlier positions valid
+                p = self.proposals[pid]
+                i1, i2 = self._prop_range(pid)
+                if self.text.get(i1, i2) == p["old"]:
+                    self.text.delete(i1, i2)
+                    self.text.insert(i1, p["new"], ())
+                    n += 1
         self.clear_proposals()
         self.snap_dirty = True
         self.analyze()

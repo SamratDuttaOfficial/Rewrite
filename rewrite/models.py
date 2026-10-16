@@ -153,6 +153,9 @@ DEFAULTS = {
     "user_words": [],
     "preview": False,
     "preview_split": 0.5,
+    "find_case": False,
+    "find_word": False,
+    "find_regex": False,
 }
 _lock = threading.Lock()
 

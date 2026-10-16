@@ -11,7 +11,7 @@ LIGHT = {
     "text": "#1E2227", "muted": "#646A73", "faint": "#9A9FA7",
     "accent": "#3B5BDB", "accent_hover": "#2F4AC0", "accent_soft": "#E8EDFF", "on_accent": "#FFFFFF",
     "changed": "#DDF3E4", "hint": "#FFEBD6", "hint_line": "#E8590C", "protected": "#8C9199",
-    "target": "#FFF1B8", "flash": "#C9D6FF", "select": "#CADBFF", "proposal": "#D4E1FF",
+    "target": "#FFF1B8", "flash": "#C9D6FF", "select": "#CADBFF", "proposal": "#D4E1FF", "found": "#FFDF8A",
     "good": "#2B8A3E", "warn": "#E8590C", "danger": "#C92A2A", "spell": "#E03131", "grammar": "#1971C2",
     "badge": {
         "synonym": ("#2B8A3E", "#E3F5E8"), "related": ("#0B7285", "#E0F4F7"),
@@ -25,7 +25,7 @@ DARK = {
     "text": "#E4E6E9", "muted": "#9CA2AB", "faint": "#6A707A",
     "accent": "#7D95FF", "accent_hover": "#98ABFF", "accent_soft": "#262E4A", "on_accent": "#0F1220",
     "changed": "#1E3B2A", "hint": "#3B2B1C", "hint_line": "#FF9A57", "protected": "#6E747E",
-    "target": "#4A4219", "flash": "#34437A", "select": "#2E4170", "proposal": "#2B3B6B",
+    "target": "#4A4219", "flash": "#34437A", "select": "#2E4170", "proposal": "#2B3B6B", "found": "#6E5318",
     "good": "#69DB7C", "warn": "#FFA94D", "danger": "#FF6B6B", "spell": "#FF6B6B", "grammar": "#4DABF7",
     "badge": {
         "synonym": ("#8CE99A", "#1D3526"), "related": ("#66D9E8", "#163339"),
@@ -92,6 +92,7 @@ class Theme:
 
         self._reg = []  # (widget, {option: colour key}) for live theme switching
         self._icons = {}  # (name, colour, pixels) -> PhotoImage
+        self.blank = tk.PhotoImage(master=root, width=1, height=1)  # see-through; lets a text label be sized in pixels
 
     def px(self, n):
         return int(round(n * self.scale))
