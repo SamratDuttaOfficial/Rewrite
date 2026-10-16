@@ -26,10 +26,10 @@ Download the file for your system from the [latest release](https://github.com/S
 
 | System | File | How |
 |---|---|---|
-| Windows 10/11 | `Rewrite-1.1.0-Windows-Setup.exe` | Run it. No admin rights needed. |
-| macOS 11+ (Apple Silicon) | `Rewrite-1.1.0-macOS-arm64.dmg` | Drag to Applications. The first time, right-click and choose **Open**. |
-| Debian / Ubuntu | `rewrite_1.1.0_amd64.deb` | `sudo apt install ./rewrite_1.1.0_amd64.deb` |
-| Other Linux | `Rewrite-1.1.0-x86_64.AppImage` | `chmod +x` it, then run it. |
+| Windows 10/11 | `Rewrite-1.2.0-Windows-Setup.exe` | Run it. No admin rights needed. |
+| macOS 11+ (Apple Silicon) | `Rewrite-1.2.0-macOS-arm64.dmg` | Drag to Applications. The first time, right-click and choose **Open**. |
+| Debian / Ubuntu | `rewrite_1.2.0_amd64.deb` | `sudo apt install ./rewrite_1.2.0_amd64.deb` |
+| Other Linux | `Rewrite-1.2.0-x86_64.AppImage` | `chmod +x` it, then run it. |
 
 On first start, Rewrite offers to download three small models (about 400 MB, once). If you skip this, it runs in
 Lite mode with the built-in thesaurus.
