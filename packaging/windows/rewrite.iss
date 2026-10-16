@@ -1,7 +1,7 @@
 ; Inno Setup script for Rewrite. Normally compiled by packaging/build.py,
 ; which passes /DVersion, /DSrc, /DOutDir and /DIcon.
 #ifndef Version
-  #define Version "1.2.0"
+  #define Version "1.2.1"
 #endif
 #ifndef Src
   #define Src "..\..\build\app\Rewrite"
