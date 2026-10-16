@@ -4,7 +4,9 @@ The text in the editor is compiled, not the file on disk, so the preview also
 works for unsaved changes and untitled documents. Auxiliary files go to a
 private folder in the system's temporary directory; nothing is written next
 to the user's .tex file. The run happens in the document's own folder, so
-\\input, \\includegraphics and .bib files are found as usual.
+\\input, \\includegraphics and .bib files are found as usual. The private
+folder is searched first, so the build's own .aux, .bbl and .toc files win over
+stale copies that another editor left next to the document.
 """
 import hashlib
 import os
@@ -19,6 +21,7 @@ import time
 ENGINES = ("pdflatex", "xelatex", "lualatex")
 TIMEOUT = 180  # seconds per program run
 _RERUN = re.compile(r"Rerun to get|Please rerun LaTeX|rerun LaTeX|Rerun LaTeX|run LaTeX again", re.I)
+_NO_DATABASE = re.compile(r"I couldn't open database file|ERROR - Cannot find\b")  # BibTeX, Biber
 _tools = {}
 
 
@@ -222,6 +225,9 @@ def build(source, path=None, encoding="utf-8", cancel=None):
             engine = "tectonic"
             pdf, log = os.path.join(out, "texput.pdf"), os.path.join(out, "texput.log")
         else:
+            # MiKTeX's pdflatex and xelatex look in the working folder before the output folder, so a stale
+            # paper.bbl next to the document would hide the one BibTeX just made.
+            env["TEXINPUTS"] = out + sep + env.get("TEXINPUTS", "")
             cmd = [find(engine), "-interaction=nonstopmode", "-file-line-error", "-synctex=0",
                    "-output-directory=" + out, "-jobname=" + job, tex]
             _run(cmd, cwd, env, cancel)
@@ -235,10 +241,12 @@ def build(source, path=None, encoding="utf-8", cancel=None):
             if (("\\bibdata" in refs) or os.path.isfile(bcf)) and _bib_changed(sig, stamp, out, job, cwd, source):
                 benv = dict(env, BIBINPUTS=cwd + sep + env.get("BIBINPUTS", ""),
                             BSTINPUTS=cwd + sep + env.get("BSTINPUTS", ""))
-                if os.path.isfile(bcf) and find("biber"):
-                    _run([find("biber"), "--input-directory", cwd, job], out, benv, cancel)
-                elif "\\bibdata" in refs and find("bibtex"):
-                    _run([find("bibtex"), job], out, benv, cancel)
+                biber, bibtex = find("biber"), find("bibtex")
+                tool = ([biber, "--input-directory", cwd, job] if os.path.isfile(bcf) and biber else
+                        [bibtex, job] if "\\bibdata" in refs and bibtex else None)
+                if tool:
+                    _run(tool, out, benv, cancel)
+                    _shipped_bbl(path, out, job)
                 with open(stamp, "w") as f:
                     f.write(sig)
                 _run(cmd, cwd, env, cancel)
@@ -264,6 +272,19 @@ def build(source, path=None, encoding="utf-8", cancel=None):
     if not data:
         message = "The document did not compile." if errors else "The compiler produced no PDF."
     return Result(data or None, errors, text, engine, time.time() - t0, warnings, message)
+
+
+def _shipped_bbl(path, out, job):
+    """Use the .bbl that came with the document when BibTeX/Biber found no .bib to make one from (arXiv
+    sources have a .bbl and no .bib); the empty .bbl in the build folder would hide it."""
+    if not path or not _NO_DATABASE.search(_read(os.path.join(out, job + ".blg"))):
+        return
+    shipped = os.path.splitext(os.path.abspath(path))[0] + ".bbl"
+    try:
+        if os.path.isfile(shipped):
+            shutil.copyfile(shipped, os.path.join(out, job + ".bbl"))
+    except OSError:
+        pass
 
 
 def _bib_changed(sig, stamp, out, job, cwd, source):
