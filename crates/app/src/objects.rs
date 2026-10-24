@@ -756,17 +756,34 @@ impl Form {
         body.set_margin_top(14);
         body.set_margin_bottom(14);
         win.set_child(Some(&body));
+        let ok: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+        // Escape closes; Enter anywhere in the form is OK, except in a text box (a new line there) and in an
+        // open drop-down list (it picks the item)
         let keys = gtk::EventControllerKey::new();
+        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         let w = win.clone();
+        let ok2 = ok.clone();
         keys.connect_key_pressed(move |_, key, _, _| {
             if key == gdk::Key::Escape {
                 w.close();
                 return glib::Propagation::Stop;
             }
+            if matches!(key, gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter) {
+                let typing = gtk::prelude::RootExt::focus(&w).is_some_and(|f| {
+                    f.is::<gtk::TextView>()
+                        || f.ancestor(gtk::TextView::static_type()).is_some()
+                        || f.ancestor(gtk::Popover::static_type()).is_some()
+                });
+                let f = ok2.borrow().clone();
+                if let (Some(f), false) = (f, typing) {
+                    f();
+                    return glib::Propagation::Stop;
+                }
+            }
             glib::Propagation::Proceed
         });
         win.add_controller(keys);
-        Form { win, body, ok: Rc::new(RefCell::new(None)) }
+        Form { win, body, ok }
     }
 
     fn heading(&self, text: &str) {
@@ -797,13 +814,6 @@ impl Form {
         let e = gtk::Entry::new();
         e.set_text(value);
         e.set_width_chars(width);
-        let ok = self.ok.clone();
-        e.connect_activate(move |_| {
-            let f = ok.borrow().clone();
-            if let Some(f) = f {
-                f();
-            }
-        });
         self.row(label, &e);
         e
     }
@@ -839,7 +849,7 @@ impl Form {
         tv
     }
 
-    /// The OK and Cancel buttons; `on_ok` also runs for Enter in a field.
+    /// The OK and Cancel buttons; `on_ok` also runs for Enter anywhere in the form but a text box.
     fn buttons(&self, ok_text: &str, on_ok: Rc<dyn Fn()>) {
         *self.ok.borrow_mut() = Some(on_ok.clone());
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
@@ -1127,7 +1137,7 @@ fn chart_dialog(app: &AppRc, c: &Chart, on_done: impl Fn(Obj) + 'static) {
     let legend = f.check("Show the legend", c.legend);
     f.note(
         "DATA — first row: series names; first column: categories. Paste from a spreadsheet, or separate values with tabs or commas.",
-        &["tiny"],
+        &["tiny", "faint"],
     )
     .set_margin_top(8);
     let mono = app.theme().families.mono.clone();
@@ -1135,9 +1145,13 @@ fn chart_dialog(app: &AppRc, c: &Chart, on_done: impl Fn(Obj) + 'static) {
     let win = f.win.clone();
     let base = c.clone();
     let app2 = app.clone();
-    *f.ok.borrow_mut() = None;
     let ok: Rc<dyn Fn()> = Rc::new(move || {
-        let (cats, series) = charts::parse_table(&text_of(&data));
+        let text = text_of(&data);
+        if let Err(e) = check_table(&text) {
+            app2.error("Chart", &format!("The numbers could not be read.\n\n{e}"));
+            return;
+        }
+        let (cats, series) = charts::parse_table(&text);
         if series.is_empty() {
             app2.error("Chart", "Give at least one column of numbers.");
             return;
@@ -1157,7 +1171,35 @@ fn chart_dialog(app: &AppRc, c: &Chart, on_done: impl Fn(Obj) + 'static) {
         on_done(Obj::Chart(chart));
     });
     f.buttons("OK", ok);
+    // Enter does not end this dialog: the titles are typed one by one and the numbers below them
+    *f.ok.borrow_mut() = None;
     f.show();
+}
+
+/// Check that every value cell of chart data, split the way `charts::parse_table` splits it, is empty or a
+/// number; parse_table itself leaves out cells that are not. Err says which cell is wrong.
+fn check_table(text: &str) -> Result<(), String> {
+    let mut rows: Vec<(usize, Vec<String>)> = vec![];
+    for (n, line) in text.trim_matches(|c| c == '\n' || c == '\r').lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let sep = if line.contains('\t') { '\t' } else if line.contains(';') && !line.contains(',') { ';' } else { ',' };
+        rows.push((n + 1, line.split(sep).map(|c| c.trim().to_string()).collect()));
+    }
+    if rows.first().is_some_and(|(_, r)| r.len() > 1 && r[1..].iter().all(|c| charts::to_number(c).is_none())) {
+        rows.remove(0); // the series names
+    }
+    let width = rows.iter().map(|(_, r)| r.len()).max().unwrap_or(1);
+    let first = if width < 2 { 0 } else { 1 }; // a single column holds numbers only; otherwise categories come first
+    for (line, cells) in &rows {
+        for (k, cell) in cells.iter().enumerate().skip(first) {
+            if !cell.is_empty() && charts::to_number(cell).is_none() {
+                return Err(format!("Line {line}, column {}: \u{201c}{cell}\u{201d} is not a number.", k + 1));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn page_setup_form(app: &AppRc, page: &PageSetup, on_done: impl Fn(PageSetup) + 'static) {
@@ -1497,3 +1539,20 @@ impl App {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chart_table_check() {
+        assert!(check_table(", Sales, Costs\nJan, 1, 2\nFeb, , 3").is_ok());
+        assert!(check_table("1\n2\n3.5").is_ok());
+        assert!(check_table("").is_ok());
+        assert!(check_table("\tA\tB\nx\t1,000\t2").is_ok());
+        let e = check_table(", Sales\nJan, 1\nFeb, lots").unwrap_err();
+        assert!(e.contains("Line 3, column 2") && e.contains("lots"), "{e}");
+        assert!(check_table("1\ntwo").is_err());
+        // the header row is not checked; the categories are not numbers
+        assert!(check_table("Month, Sales\nJan, 5").is_ok());
+    }
+}

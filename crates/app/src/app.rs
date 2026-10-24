@@ -320,7 +320,11 @@ impl App {
 
     fn build(self: &Rc<Self>) {
         let win = &self.win;
-        let (w, h) = parse_size(&self.settings().geometry).unwrap_or((1360, 860));
+        let (sw, sh) = screen_size();
+        let (w, h) = match parse_size(&self.settings().geometry) {
+            Some((w, h)) => (w.min(sw), h.min(sh)),
+            None => (1360.min(sw * 82 / 100), 860.min(sh * 82 / 100)),
+        };
         win.set_default_size(w, h);
         win.set_size_request(760, 480);
         if let (Some(display), Some(icons)) = (gdk::Display::default(), rewrite_core::paths::asset("icons")) {
@@ -989,7 +993,7 @@ impl App {
                 gdk::Key::y if !in_entry => self.redo(),
                 gdk::Key::z if shift && !in_entry => self.redo(),
                 gdk::Key::z if !in_entry => self.undo(),
-                gdk::Key::a if in_main || pdf => self.select_all(),
+                gdk::Key::a if in_main || (pdf && !in_entry) => self.select_all(),
                 gdk::Key::k if self.rich_active() && in_main => self.rich_link(),
                 gdk::Key::b | gdk::Key::i | gdk::Key::u if self.rich_active() && in_main => {
                     let n = match lower {
@@ -1190,6 +1194,7 @@ impl App {
             st.current_issue = None;
         }
         self.panel().reset();
+        self.preview().new_document();
         self.update_title();
         self.analyze();
         if self.st.borrow().preview_on {
@@ -1307,6 +1312,7 @@ impl App {
     /// Read a file and show it. Returns whether it opened.
     fn load_path(&self, path: &Path) -> bool {
         self.win.set_cursor_from_name(Some("wait"));
+        flush_events();
         let loaded = files::load(path);
         self.win.set_cursor(None::<&gdk::Cursor>);
         let loaded = match loaded {
@@ -2086,11 +2092,30 @@ fn make_tags(buf: &gtk::TextBuffer) -> Tags {
     }
 }
 
+/// The size of the screen the window opens on (its first monitor), in GTK's units.
+fn screen_size() -> (i32, i32) {
+    let geo = gdk::Display::default()
+        .and_then(|d| d.monitors().item(0))
+        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+        .map(|m| m.geometry());
+    geo.map_or((1920, 1080), |g| (g.width(), g.height()))
+}
+
 fn parse_size(geo: &str) -> Option<(i32, i32)> {
     let size = geo.split(['+', '-']).next()?;
     let (w, h) = size.split_once('x')?;
     let (w, h) = (w.parse::<i32>().ok()?, h.parse::<i32>().ok()?);
     (w >= 400 && h >= 300).then_some((w, h))
+}
+
+/// Let GTK draw pending changes (such as a wait cursor) before a long call on the UI thread.
+fn flush_events() {
+    let ctx = glib::MainContext::default();
+    for _ in 0..20 {
+        if !ctx.iteration(false) {
+            break;
+        }
+    }
 }
 
 pub fn ext_of(p: &Path) -> String {

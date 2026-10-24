@@ -1,7 +1,7 @@
 //! Cleaning up text taken from PDFs and splitting it into sentences.
 //!
 //! The hard calls (is "co-operate" one word or two? does "al." end a sentence?) are asked of a `Helper`:
-//! the Python side answers with its dictionary and, when it is loaded, the context model. Without a
+//! the language engine answers with its dictionary and, when it is loaded, the context model. Without a
 //! helper only safe rules are used.
 
 use std::collections::HashSet;

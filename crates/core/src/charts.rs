@@ -1,4 +1,4 @@
-//! Charts: one layout drawn by several back ends (Tk canvas on the Python side, PDF page, SVG), plus Word's
+//! Charts: one layout drawn by several back ends (the editor's canvas, PDF page, SVG), plus Word's
 //! native chart XML (with the data workbook, so the chart stays editable in Word) and LaTeX pgfplots code.
 //!
 //! A chart is laid out once as shapes in points, top-left origin.

@@ -1,4 +1,4 @@
-//! Compiling a LaTeX document to PDF for the preview and for export. Mirrors `rewrite/latexbuild.py`.
+//! Compiling a LaTeX document to PDF for the preview and for export (was `rewrite/latexbuild.py`).
 //!
 //! The text in the editor is compiled, not the file on disk, so the preview also works for unsaved changes
 //! and untitled documents. Auxiliary files go to a private folder in the system's temporary directory;

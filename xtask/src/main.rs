@@ -377,23 +377,37 @@ fn package_macos(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
     }
     let brew = PathBuf::from(output(Command::new("brew").arg("--prefix")).unwrap_or_else(|_| "/opt/homebrew".into()).trim());
     // copy every non-system dylib the program needs and point the references at Frameworks
-    let mut todo = vec![main.clone()];
+    // (file in the bundle, the folder it came from: where its @rpath and @loader_path references point)
+    let mut todo = vec![(main.clone(), brew.join("lib"))];
     let mut seen = BTreeSet::new();
-    while let Some(f) = todo.pop() {
+    while let Some((f, origin)) = todo.pop() {
         let deps = output(Command::new("otool").arg("-L").arg(&f))?;
         for line in deps.lines().skip(1) {
             let dep = line.trim().split(" (").next().unwrap_or("").to_string();
-            if dep.starts_with("/usr/lib") || dep.starts_with("/System") || dep.is_empty() || dep.starts_with("@") {
+            if dep.starts_with("/usr/lib") || dep.starts_with("/System") || dep.is_empty() || dep.starts_with("@executable_path") {
                 continue;
             }
             let name = Path::new(&dep).file_name().unwrap().to_string_lossy().into_owned();
+            // Homebrew's libraries name each other as @rpath/... or @loader_path/...: find the real file
+            let source = if dep.starts_with('@') {
+                match [origin.join(&name), brew.join("lib").join(&name)].into_iter().find(|p| p.is_file()) {
+                    Some(p) => p,
+                    None if frameworks.join(&name).is_file() => frameworks.join(&name), // one of ours (runtime libraries)
+                    None => return Err(format!("{dep} (needed by {}) is not in {} or Homebrew's lib", f.display(), origin.display())),
+                }
+            } else {
+                PathBuf::from(&dep)
+            };
             let _ = Command::new("install_name_tool").arg("-change").arg(&dep).arg(format!("@executable_path/../Frameworks/{name}")).arg(&f).status();
             if seen.insert(name.clone()) {
                 let dst = frameworks.join(&name);
-                fs::copy(&dep, &dst).map_err(|e| format!("{dep}: {e}"))?;
+                if source != dst {
+                    fs::copy(&source, &dst).map_err(|e| format!("{}: {e}", source.display()))?;
+                }
                 let _ = Command::new("chmod").arg("u+w").arg(&dst).status();
                 let _ = Command::new("install_name_tool").arg("-id").arg(format!("@executable_path/../Frameworks/{name}")).arg(&dst).status();
-                todo.push(dst);
+                let real = source.canonicalize().unwrap_or(source.clone());
+                todo.push((dst, real.parent().map(Path::to_path_buf).unwrap_or_else(|| brew.join("lib"))));
             }
         }
     }

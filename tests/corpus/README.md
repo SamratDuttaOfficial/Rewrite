@@ -1,11 +1,12 @@
 # Parity corpus
 
-Inputs for `tools/parity_dump.py`, which records what the Python modules return for them into
-`tests/fixtures/*.json`. The Rust ports are tested against those fixtures.
+Inputs whose results under the earlier Python version (commit `0da855b`) are recorded in `tests/fixtures/*.json`.
+The Rust crates are tested against those results (see `crates/testkit`).
 
 - `prose.txt`: sentences with abbreviations, misspellings, grammar slips and wordy phrases.
 - `edge.md`, `edge.tex`, `edge.html`, `code.*`: markup and source code for protected spans and the preview parser.
-- `logs/`: LaTeX logs (paths replaced) for the log parser.
-- The examples in `examples/` are read too.
+- `logs/`: LaTeX logs (user name masked) for the log parser.
+- `pdf/`: PDFs for reading and converting PDFs.
+- The examples in `examples/` were read too.
 
-Add inputs here, never in `examples/`, and run `python tools/parity_dump.py` again.
+The Python version is gone, so the fixtures can no longer be recorded again; new behaviour gets ordinary tests.

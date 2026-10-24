@@ -278,21 +278,24 @@ impl PdfView {
                 adj.set_value(f * adj.upper());
             }
         });
-        // Ctrl + wheel zooms
+        // Ctrl + wheel zooms: one step of x1.1 per wheel notch. Smooth (touchpad) scrolling sends many small
+        // deltas, so they are added up and one step is taken per whole unit of the sum.
         let wheel = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
         wheel.set_propagation_phase(gtk::PropagationPhase::Capture);
         let w = Rc::downgrade(&view.v);
+        let acc = Rc::new(Cell::new(0.0f64));
+        let acc2 = acc.clone();
+        wheel.connect_scroll_begin(move |_| acc2.set(0.0));
         wheel.connect_scroll(move |c, _, dy| {
             if !c.current_event_state().contains(gdk::ModifierType::CONTROL_MASK) {
+                acc.set(0.0);
                 return glib::Propagation::Proceed;
             }
-            if let Some(v) = w.upgrade() {
+            let Some(v) = w.upgrade() else { return glib::Propagation::Stop };
+            let steps = zoom_steps(&acc, dy, c.unit());
+            if steps != 0 {
                 let view = PdfView { v };
-                if dy < 0.0 {
-                    view.set_zoom(view.zoom() * 1.1);
-                } else if dy > 0.0 {
-                    view.set_zoom(view.zoom() / 1.1);
-                }
+                view.set_zoom(view.zoom() * 1.1f64.powi(-steps));
             }
             glib::Propagation::Stop
         });
@@ -1810,6 +1813,24 @@ fn still_there(data: &[u8], p: usize, bx: (f64, f64, f64, f64), text: &str, page
     Ok(hits >= 1.max(words.len() / 2))
 }
 
+/// Pixels of smooth scrolling that count as one wheel notch, for devices that report surface pixels.
+const PX_PER_NOTCH: f64 = 40.0;
+
+/// Add a scroll delta to `acc` and return the number of whole zoom steps it now holds (positive = scrolled
+/// down = zoom out), keeping the remainder. A direction change drops what was left over the other way.
+fn zoom_steps(acc: &Cell<f64>, dy: f64, unit: gdk::ScrollUnit) -> i32 {
+    let d = if unit == gdk::ScrollUnit::Surface { dy / PX_PER_NOTCH } else { dy };
+    let mut a = acc.get();
+    if a * d < 0.0 {
+        a = 0.0;
+    }
+    a += d;
+    // ten deltas of 0.1 add up to a hair under 1: they still make one step
+    let steps = (a + 1e-6f64.copysign(a)).trunc();
+    acc.set(a - steps);
+    steps as i32
+}
+
 // -- PdfBar -----------------------------------------------------------------------------------------------
 
 /// Tools, page operations and zoom for the PDF view.
@@ -1819,6 +1840,8 @@ pub struct PdfBar {
 
 impl PdfBar {
     pub fn new(app: &AppRc) -> PdfBar {
+        /// The bar's icon size, as in the original program's PDF bar.
+        const ICON: i32 = 15;
         let root = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         root.add_css_class("bg");
         root.set_margin_start(6);
@@ -1828,7 +1851,7 @@ impl PdfBar {
         for (name, icon, tip) in TOOLS {
             let me = app.weak();
             let all = Rc::downgrade(&tools);
-            let t = Toggle::new(Some(icon), "", name == "select", tip, move |_| {
+            let t = Toggle::new(None, "", name == "select", tip, move |_| {
                 if let Some(all) = all.upgrade() {
                     for (n, b) in all.borrow().iter() {
                         b.set(n == name);
@@ -1838,6 +1861,7 @@ impl PdfBar {
                     app.pdf().set_tool(name);
                 }
             });
+            t.button.set_child(Some(&widgets::icon(icon, ICON)));
             root.append(&t.button);
             tools.borrow_mut().push((name.to_string(), t));
         }
@@ -1860,11 +1884,11 @@ impl PdfBar {
             ("trash", "Delete this page", |e| e.delete_page()),
         ];
         for (icon, tip, f) in ops {
-            root.append(&widgets::icon_button(icon, tip, act(f)));
+            root.append(&widgets::sized_icon_button(icon, ICON, tip, act(f)));
         }
         root.append(&widgets::separator(4));
-        root.append(&widgets::icon_button("minus", "Zoom out", act(|e| e.set_zoom(e.zoom() / 1.2))));
-        root.append(&widgets::icon_button("plus", "Zoom in (Ctrl + mouse wheel)", act(|e| e.set_zoom(e.zoom() * 1.2))));
+        root.append(&widgets::sized_icon_button("minus", ICON, "Zoom out", act(|e| e.set_zoom(e.zoom() / 1.2))));
+        root.append(&widgets::sized_icon_button("plus", ICON, "Zoom in (Ctrl + mouse wheel)", act(|e| e.set_zoom(e.zoom() * 1.2))));
         let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         spacer.set_hexpand(true);
         root.append(&spacer);
@@ -1895,5 +1919,31 @@ impl PdfBar {
     }
     pub fn widget(&self) -> gtk::Widget {
         self.root.clone().upcast()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zoom_steps_add_up() {
+        let acc = Cell::new(0.0);
+        // a wheel notch is one step each
+        assert_eq!(zoom_steps(&acc, 1.0, gdk::ScrollUnit::Wheel), 1);
+        assert_eq!(zoom_steps(&acc, -1.0, gdk::ScrollUnit::Wheel), -1);
+        // a touchpad's small deltas: one step per whole unit
+        let steps: i32 = (0..25).map(|_| zoom_steps(&acc, 0.1, gdk::ScrollUnit::Wheel)).sum();
+        assert_eq!(steps, 2);
+        let fresh = Cell::new(0.0);
+        let steps: i32 = (0..10).map(|_| zoom_steps(&fresh, -0.1, gdk::ScrollUnit::Wheel)).sum();
+        assert_eq!(steps, -1);
+        // turning back drops what was left the other way
+        assert_eq!(zoom_steps(&acc, -0.6, gdk::ScrollUnit::Wheel), 0);
+        assert_eq!(zoom_steps(&acc, -0.6, gdk::ScrollUnit::Wheel), -1);
+        // surface pixels
+        acc.set(0.0);
+        assert_eq!(zoom_steps(&acc, PX_PER_NOTCH * 0.5, gdk::ScrollUnit::Surface), 0);
+        assert_eq!(zoom_steps(&acc, PX_PER_NOTCH * 0.5, gdk::ScrollUnit::Surface), 1);
     }
 }

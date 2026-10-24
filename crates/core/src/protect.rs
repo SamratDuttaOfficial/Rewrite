@@ -1,6 +1,6 @@
 //! The parts of a text that must not be rewritten: LaTeX commands and maths, Markdown code and links, HTML
-//! tags, URLs and e-mail addresses, or (for source code) everything except comments. Mirrors the protected
-//! spans of `rewrite/formats.py`; the patterns use lookbehind and backreferences, hence `fancy_regex`.
+//! tags, URLs and e-mail addresses, or (for source code) everything except comments. Was part of
+//! `rewrite/formats.py`; the patterns use lookbehind and backreferences, hence `fancy_regex`.
 //!
 //! Spans are byte ranges `(start, end)` into the text, sorted and merged.
 

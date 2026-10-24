@@ -702,10 +702,6 @@ pub fn omml_to_tex(el: roxmltree::Node) -> String {
     }
 }
 
-pub fn omml_xml_to_tex(xml: &str) -> String {
-    roxmltree::Document::parse(xml).map(|d| omml_to_tex(d.root_element()).trim().to_string()).unwrap_or_default()
-}
-
 // -- tree -> MathML -----------------------------------------------------------------
 
 fn mml(n: &Node) -> String {

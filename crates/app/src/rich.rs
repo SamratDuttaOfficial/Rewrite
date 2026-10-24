@@ -423,6 +423,28 @@ impl RichEditor {
         });
         self.text.add_controller(click);
 
+        // a formula under the pointer: a hint and the hand
+        let hover = gtk::EventControllerMotion::new();
+        let over = std::rc::Rc::new(Cell::new(false));
+        let set_over = {
+            let (over, text) = (over.clone(), self.text.clone());
+            move |on: bool| {
+                if over.replace(on) != on {
+                    text.set_tooltip_text(if on { Some("Formula — double-click to edit") } else { None });
+                    text.set_cursor_from_name(Some(if on { "pointer" } else { "text" }));
+                }
+            }
+        };
+        let a = app.weak();
+        let set = set_over.clone();
+        hover.connect_motion(move |_, x, y| {
+            let mut on = false;
+            with(&a, |_, r| on = r.formula_at(x, y));
+            set(on);
+        });
+        hover.connect_leave(move |_| set_over(false));
+        self.text.add_controller(hover);
+
         // the clipboard keeps the formatting of what was copied here
         let a = app.weak();
         self.text.connect_copy_clipboard(move |tv| {
@@ -2058,6 +2080,11 @@ label.rich-muted {{ color: {muted}; font-family: "{ui}"; font-size: {small}pt; }
         None
     }
 
+    /// Whether the pointer is over a formula.
+    fn formula_at(&self, x: f64, y: f64) -> bool {
+        self.picture_at(x, y).is_some_and(|oid| matches!(self.objects.borrow().get(&oid), Some(Entry { obj: Obj::Math(_), .. })))
+    }
+
     fn link_at(&self, x: f64, y: f64) -> Option<String> {
         let (it, bx, by) = self.iter_at_point(x, y)?;
         if !self.inside(&it, bx, by) {
@@ -2123,9 +2150,6 @@ label.rich-muted {{ color: {muted}; font-family: "{ui}"; font-size: {small}pt; }
 
     /// b | i | u | s | sup | sub
     pub fn toggle(&self, name: &str) {
-        if self.focused_cell().is_some() {
-            return;
-        }
         let tag = format!("f:{name}");
         let Some((a, b)) = self.selection() else {
             let cur = fmt_get(&self.state().0, name).is_some();
@@ -2284,7 +2308,8 @@ label.rich-muted {{ color: {muted}; font-family: "{ui}"; font-size: {small}pt; }
             }
             gdk::Key::Tab | gdk::Key::KP_Tab if !ctrl => self.key_tab(if shift { -1 } else { 1 }),
             gdk::Key::ISO_Left_Tab if !ctrl => self.key_tab(-1),
-            gdk::Key::BackSpace if !ctrl && !shift => self.key_backspace(),
+            // with Shift or Ctrl too: at the start of a list item they end the list or take the indent back
+            gdk::Key::BackSpace if !state.contains(gdk::ModifierType::ALT_MASK) => self.key_backspace(),
             gdk::Key::Home | gdk::Key::KP_Home => {
                 let a = self.app.clone();
                 glib::idle_add_local_once(move || with(&a, |_, r| r.skip_marker()));

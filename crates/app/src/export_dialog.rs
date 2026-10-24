@@ -118,7 +118,9 @@ pub fn show(app: &AppRc, source: Source) {
     let is_pdf = source.kind == "pdf";
     let targets: Vec<(&str, &str)> = TARGETS.iter().copied().filter(|(ext, _)| !(*ext == ".pdf" && is_pdf)).collect();
     let mut default = s.export_target.clone().unwrap_or_else(|| if is_pdf { ".docx".into() } else { ".pdf".into() });
-    if (is_pdf && default == ".pdf") || !targets.iter().any(|(e, _)| *e == default) {
+    // .doc needs LibreOffice: without it that choice is greyed out, so it is not the one picked
+    let office = office::available();
+    if (is_pdf && default == ".pdf") || (default == ".doc" && !office) || !targets.iter().any(|(e, _)| *e == default) {
         default = if is_pdf { ".docx".into() } else { ".pdf".into() };
     }
 
@@ -170,7 +172,6 @@ pub fn show(app: &AppRc, source: Source) {
         closed: Cell::new(false),
     });
     OPEN.with(|o| *o.borrow_mut() = Rc::downgrade(&dlg));
-    let office = office::available();
     let mut group: Option<gtk::CheckButton> = None;
     for (k, (ext, label)) in targets.iter().enumerate() {
         let rb = gtk::CheckButton::with_label(&format!("{label}  ({ext})"));

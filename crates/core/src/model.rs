@@ -1,6 +1,5 @@
-//! The formatted document every import and export goes through. Mirrors `rewrite/docmodel.py`:
-//! on the Python side the same structure is a set of dataclasses, and the two meet as plain dicts
-//! (blocks and inline items carry a "type" key with the lower-cased class name).
+//! The formatted document every import and export goes through (was `rewrite/docmodel.py`). Serialised,
+//! blocks and inline items carry a "type" key with the lower-cased type name.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -529,21 +528,3 @@ pub fn document_text(doc: &Document) -> String {
     out.into_iter().filter(|x| !x.trim().is_empty()).collect::<Vec<_>>().join("\n\n")
 }
 
-/// Every paragraph, including those inside table cells.
-pub fn all_paragraphs(doc: &Document) -> Vec<&Paragraph> {
-    let mut out = vec![];
-    for b in &doc.blocks {
-        match b {
-            Block::Paragraph(p) => out.push(p),
-            Block::Table(t) => {
-                for row in &t.rows {
-                    for cell in row {
-                        out.extend(cell.iter());
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    out
-}

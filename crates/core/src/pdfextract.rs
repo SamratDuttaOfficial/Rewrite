@@ -1,5 +1,5 @@
-//! PDF pages (characters with their boxes and fonts, pictures and drawings, as read by PDFium on the
-//! Python side) -> a Document with paragraphs, headings, lists, tables, code, pictures and notes.
+//! PDF pages (characters with their boxes and fonts, pictures and drawings, as read by PDFium in
+//! rewrite-pdfium) -> a Document with paragraphs, headings, lists, tables, code, pictures and notes.
 //!
 //! Lines are rebuilt from the characters; running headers, footers and page numbers are dropped;
 //! drawings (charts, plots) and display equations are cut out of the page as pictures; lines are joined

@@ -364,7 +364,7 @@ pub fn plain(tex: &str) -> String {
     r.inline(tex, None).iter().filter_map(|x| if let Inline::Run(r) = x { Some(r.text.clone()) } else { None }).collect::<String>().trim().to_string()
 }
 
-/// Turns the bytes of a PDF figure into PNG bytes (the Python side draws it with PDFium).
+/// Turns the bytes of a PDF figure into PNG bytes (the program draws it with PDFium).
 pub type PdfFigure<'a> = &'a dyn Fn(&[u8]) -> Option<Vec<u8>>;
 
 pub struct Reader<'a> {

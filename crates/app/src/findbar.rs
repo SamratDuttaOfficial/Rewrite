@@ -672,7 +672,16 @@ impl FindBar {
         }).collect();
         let r = app.text.visible_rect();
         let top = Some(moved(app.text.line_at_y(r.y()).0.offset() as usize));
-        let _ = snap;
+        // In a plain text the edits are joined into at most PIECES pieces: each buffer edit is a step to redo
+        // and undo, and 20,000 of them are slow both ways. In a formatted text each match is replaced on its
+        // own, so the formatting of the text between matches stays.
+        let joined;
+        let edits = if app.rich_active() {
+            edits
+        } else {
+            joined = join_edits(&snap.text, &snap.off, edits);
+            &joined[..]
+        };
         app.one_step(|| {
             for (s, e, new) in edits.iter().rev() {
                 // back to front keeps the earlier positions valid
@@ -711,6 +720,32 @@ impl FindBar {
             app.text.scroll_to_mark(&mark, 0.0, true, 0.0, 0.0);
         }
     }
+}
+
+/// Most buffer edits one Replace all makes in a plain text.
+const PIECES: usize = 50;
+
+/// Join the edits [(start, end, new)], sorted character offsets into `text`, into at most PIECES edits that
+/// each span a run of them, carrying the text between them over unchanged.
+fn join_edits(text: &str, off: &engine::Offsets, edits: &[(usize, usize, String)]) -> Vec<(usize, usize, String)> {
+    if edits.is_empty() {
+        return vec![];
+    }
+    let size = edits.len().div_ceil(PIECES);
+    edits
+        .chunks(size)
+        .map(|part| {
+            let (first, last) = (part[0].0, part[part.len() - 1].1);
+            let mut out = String::new();
+            let mut pos = off.byte(first);
+            for (s, e, new) in part {
+                out.push_str(&text[pos..off.byte(*s)]);
+                out.push_str(new);
+                pos = off.byte(*e);
+            }
+            (first, last, out)
+        })
+        .collect()
 }
 
 /// Scroll so that the mark is in view: a little if it is near, to the middle if it is far.
@@ -878,6 +913,93 @@ mod tests {
         assert_eq!(rep(r"a", "a", r"\101").unwrap(), "A");
         assert_eq!(thousands(1234567), "1,234,567");
         assert_eq!(thousands(999), "999");
+    }
+
+    #[test]
+    fn joins_edits() {
+        let text = "a cat, a cat — a cat";
+        let off = engine::Offsets::new(text);
+        let edits: Vec<(usize, usize, String)> =
+            text.match_indices("cat").map(|(b, m)| (off.char(b), off.char(b + m.len()), "dog".to_string())).collect();
+        let joined = join_edits(text, &off, &edits);
+        assert_eq!(joined, edits); // up to PIECES edits stay as they are
+        let pairs: Vec<(usize, usize, String)> = (0..PIECES * 2).map(|k| (k, k + 1, "x".into())).collect();
+        let text2 = "y".repeat(PIECES * 2);
+        let joined = join_edits(&text2, &engine::Offsets::new(&text2), &pairs);
+        assert_eq!(joined.len(), PIECES);
+        assert_eq!(joined[0], (0, 2, "xx".to_string()));
+        let wide = "a cat, a cat — a cat ".repeat(60);
+        let off = engine::Offsets::new(&wide);
+        let cats: Vec<(usize, usize, String)> =
+            wide.match_indices("cat").map(|(b, m)| (off.char(b), off.char(b + m.len()), "dog".to_string())).collect();
+        let joined = join_edits(&wide, &off, &cats);
+        assert_eq!(joined.len(), 45); // 180 edits in pieces of 4
+        let mut out: Vec<char> = wide.chars().collect();
+        for (s, e, new) in joined.iter().rev() {
+            out.splice(*s..*e, new.chars());
+        }
+        assert_eq!(out.into_iter().collect::<String>(), wide.replace("cat", "dog"));
+        let many: Vec<(usize, usize, String)> = (0..120).map(|k| (k * 2, k * 2 + 1, "x".into())).collect();
+        let text = "ab".repeat(120);
+        let joined = join_edits(&text, &engine::Offsets::new(&text), &many);
+        assert!(joined.len() <= PIECES);
+        let mut out = text.clone();
+        for (s, e, new) in joined.iter().rev() {
+            out.replace_range(*s..*e, new);
+        }
+        assert_eq!(out, "xb".repeat(120));
+    }
+
+    /// Timing of Replace all in a 1 MB plain text with 20,000 matches, one buffer edit per match against
+    /// joined pieces, both doing and undoing. Run with `cargo test -p rewrite-app -- --ignored --nocapture
+    /// replace_all_timing`.
+    #[test]
+    #[ignore]
+    fn replace_all_timing() {
+        use std::time::Instant;
+        gtk::init().unwrap();
+        let unit = "Plain words fill this line; one target is here. ";
+        let mut text = String::new();
+        for k in 0.. {
+            if text.len() >= 1_000_000 {
+                break;
+            }
+            text.push_str(unit);
+            if k % 10 == 9 {
+                text.push('\n');
+            }
+        }
+        let off = engine::Offsets::new(&text);
+        let edits: Vec<(usize, usize, String)> = text
+            .match_indices("target")
+            .take(20_000)
+            .map(|(b, m)| (off.char(b), off.char(b + m.len()), "aim".to_string()))
+            .collect();
+        println!("{} bytes, {} matches", text.len(), edits.len());
+        for joined in [false, true] {
+            let buf = gtk::TextBuffer::new(None);
+            buf.set_enable_undo(false);
+            buf.set_text(&text);
+            buf.set_enable_undo(true);
+            let t0 = Instant::now();
+            let pieces = if joined { join_edits(&text, &off, &edits) } else { edits.clone() };
+            buf.begin_user_action();
+            for (s, e, new) in pieces.iter().rev() {
+                let (mut i1, mut i2) = (buf.iter_at_offset(*s as i32), buf.iter_at_offset(*e as i32));
+                buf.delete(&mut i1, &mut i2);
+                let mut i1 = buf.iter_at_offset(*s as i32);
+                buf.insert(&mut i1, new);
+            }
+            buf.end_user_action();
+            let done = t0.elapsed();
+            let t1 = Instant::now();
+            buf.undo();
+            let undone = t1.elapsed();
+            let (a, b) = buf.bounds();
+            assert_eq!(buf.text(&a, &b, false).as_str(), text);
+            println!("{}: {} buffer edits, replace {:?}, undo {:?}", if joined { "joined" } else { "per match" },
+                pieces.len() * 2, done, undone);
+        }
     }
 
     #[test]

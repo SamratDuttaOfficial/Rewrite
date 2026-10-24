@@ -1,7 +1,0 @@
-numpy>=1.23
-onnxruntime>=1.16
-tokenizers>=0.15
-lemminflect>=0.2.3
-certifi
-tkinterdnd2>=0.4.2
-pypdfium2>=4.20

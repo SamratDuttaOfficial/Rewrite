@@ -171,25 +171,6 @@ pub fn flatten(img: &RgbaImage, bg: (u8, u8, u8)) -> Vec<u8> {
     out
 }
 
-/// A picture resized to w x h pixels as PPM data for Tk; transparent parts take the background colour.
-pub fn thumbnail_ppm(data: &[u8], w: u32, h: u32, bg: (u8, u8, u8)) -> Result<Vec<u8>, String> {
-    let img = decode(data)?;
-    let small = if (w, h) == (img.width(), img.height()) {
-        img.to_rgba8()
-    } else if w < img.width() / 2 {
-        img.thumbnail_exact(w.max(1), h.max(1)).to_rgba8()
-    } else {
-        img.resize_exact(w.max(1), h.max(1), image::imageops::FilterType::CatmullRom).to_rgba8()
-    };
-    Ok(ppm(&small, bg))
-}
-
-pub fn ppm(img: &RgbaImage, bg: (u8, u8, u8)) -> Vec<u8> {
-    let mut out = format!("P6 {} {} 255\n", img.width(), img.height()).into_bytes();
-    out.extend(flatten(img, bg));
-    out
-}
-
 /// A grey box with a cross, for pictures that cannot be shown.
 pub fn placeholder(w: u32, h: u32) -> RgbaImage {
     let (w, h) = (w.max(2), h.max(2));

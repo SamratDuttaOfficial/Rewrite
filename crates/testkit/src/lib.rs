@@ -1,5 +1,5 @@
-//! Parity fixtures: what the Python modules returned for the corpus in `tests/corpus`, recorded by
-//! `tools/parity_dump.py` into `tests/fixtures/<group>.json`. A Rust port is tested by running it on each
+//! Parity fixtures: what the earlier Python version returned for the corpus in `tests/corpus`, recorded in
+//! `tests/fixtures/<group>.json` before it was removed. The Rust code is tested by running it on each
 //! recorded call and comparing the result with the recorded one.
 //!
 //! Values are JSON as Python produced them: tuples are arrays, bytes are `{"b64": ...}` (see [`normalize`]),
@@ -49,7 +49,7 @@ impl Fixture {
     /// Loads `tests/fixtures/<group>.json`, or panics with how to make it.
     pub fn load(group: &str) -> Fixture {
         Self::try_load(group).unwrap_or_else(|| {
-            panic!("tests/fixtures/{group}.json is missing: run  python tools/parity_dump.py {group}")
+            panic!("tests/fixtures/{group}.json is missing")
         })
     }
 

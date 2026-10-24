@@ -13,6 +13,7 @@ mod objects;
 mod panel;
 mod pdfview;
 mod preview;
+mod recovery;
 mod rich;
 mod selftest;
 mod settings;
@@ -46,6 +47,7 @@ fn bundle_env() {
 
 fn main() -> glib::ExitCode {
     bundle_env();
+    recovery::install();
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("--selftest") {
         return glib::ExitCode::from(selftest::run(args.get(2).map(PathBuf::from)) as u8);
@@ -97,6 +99,7 @@ fn start(gapp: &gtk::Application, slot: &Rc<RefCell<Option<app::AppRc>>>, file: 
         None => app.set_text("", None),
     }
     app.reload_models(None);
+    recovery::check(&app);
     let first_run = !app.settings().first_run_done && !rewrite_nlp::download::MODELS.iter().all(|m| rewrite_nlp::download::present(m.key));
     if first_run {
         let a = app.clone();

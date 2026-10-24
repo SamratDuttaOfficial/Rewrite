@@ -1,5 +1,5 @@
 //! Export and conversion: whatever is open (text, a formatted document or a PDF) written as PDF, Word,
-//! OpenDocument, RTF, HTML, Markdown, LaTeX or plain text. Mirrors `rewrite/exporting.py`: the formats
+//! OpenDocument, RTF, HTML, Markdown, LaTeX or plain text (was `rewrite/exporting.py`). The formats
 //! are read and written by [`convert`]; this decides the route and writes the files.
 //!
 //! Reading PDF pages needs PDFium, which lives in a crate built on this one, so it comes in as a

@@ -1,4 +1,4 @@
-//! A small Markdown parser for the preview panel. Mirrors `rewrite/mdrender.py`.
+//! A small Markdown parser for the preview panel (was `rewrite/mdrender.py`).
 //!
 //! [`parse`] returns blocks; the text inside a block is a list of [`Run`]s with styles from "b", "i", "code",
 //! "strike", "math", "sup" (and "img" for pictures). It covers what people actually write (headings,

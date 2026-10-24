@@ -22,7 +22,12 @@ pub fn run(log: Option<PathBuf>) -> i32 {
 }
 
 fn check() -> Result<String, String> {
-    gtk4::init().map_err(|e| format!("GTK does not start: {e}"))?;
+    // GTK's libraries are loaded once the program runs at all; starting it also needs a screen, which a
+    // build machine may not have
+    let headless = cfg!(target_os = "linux") && std::env::var_os("DISPLAY").is_none() && std::env::var_os("WAYLAND_DISPLAY").is_none();
+    if !headless {
+        gtk4::init().map_err(|e| format!("GTK does not start: {e}"))?;
+    }
     let eng = crate::engine::Engine::new(&[]);
     eng.load_models();
     let t = "The results show a significant improvement in accuracy.";

@@ -11,6 +11,35 @@ use gtk4::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
+thread_local! {
+    static CSS: std::cell::OnceCell<gtk::CssProvider> = const { std::cell::OnceCell::new() };
+}
+
+/// The panel's own style: the misspelled word in the theme's spelling colour.
+fn css_text(app: &App) -> String {
+    format!(".spell-word {{ color: {}; }}\n", app.theme().c("spell"))
+}
+
+fn ensure_css(app: &AppRc) {
+    CSS.with(|c| {
+        if c.get().is_some() {
+            return;
+        }
+        let provider = gtk::CssProvider::new();
+        provider.load_from_string(&css_text(app));
+        if let Some(display) = gtk::gdk::Display::default() {
+            gtk::style_context_add_provider_for_display(&display, &provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 2);
+        }
+        let _ = c.set(provider.clone());
+        let me = app.weak();
+        app.theme().on_change(move || {
+            if let Some(app) = me.upgrade() {
+                provider.load_from_string(&css_text(&app));
+            }
+        });
+    });
+}
+
 const PAD: i32 = 10; // margin left and right of the content
 const WIDE: i32 = 480; // from this width on (the panel below the editor) there is room for two columns
 
@@ -90,6 +119,7 @@ pub struct Panel {
 
 impl Panel {
     pub fn new(app: &AppRc) -> Panel {
+        ensure_css(app);
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_hscrollbar_policy(gtk::PolicyType::Never);
         scroll.set_vexpand(true);
@@ -311,27 +341,48 @@ impl Panel {
         card.set_margin_start(PAD);
         card.set_margin_end(PAD);
         card.set_margin_top(2);
-        let flow = gtk::FlowBox::new();
-        flow.set_selection_mode(gtk::SelectionMode::None);
-        flow.set_column_spacing(6);
-        flow.set_max_children_per_line(3);
-        flow.set_min_children_per_line(1);
-        match new {
-            None => flow.append(&widgets::wrap_label(old, &["item", "bold"])),
-            Some(n) => {
-                // short: old → new on one line; long: stacked
-                let short = old.chars().count() + n.chars().count() < 40;
-                flow.set_max_children_per_line(if short { 3 } else { 1 });
-                flow.append(&widgets::wrap_label(old, &["strike", "muted"]));
-                flow.append(&widgets::label(if short { "→" } else { "↓" }, &["small", "faint"]));
-                flow.append(&widgets::wrap_label(n, &["item", "bold"]));
-            }
-        }
-        card.append(&flow);
+        let line = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        card.append(&line);
         if let Some(n) = note {
             card.append(&widgets::wrap_label(n, &["small", "muted"]));
         }
+        // in the column first, so that the labels have their fonts when they are measured
         col.append(&card);
+        let parts: Vec<gtk::Label> = match new {
+            None => vec![widgets::wrap_label(old, &["item", "bold"])],
+            Some(n) => vec![
+                widgets::wrap_label(old, &["strike", "muted"]),
+                widgets::label("→", &["small", "faint"]),
+                widgets::wrap_label(n, &["item", "bold"]),
+            ],
+        };
+        for l in &parts {
+            line.append(l);
+        }
+        // short: old → new on one line; long: stacked, with the arrow pointing down
+        let room = self.column_width() - 2 * PAD - 18;
+        let width: i32 = parts.iter().map(|l| l.create_pango_layout(Some(&l.label())).pixel_size().0 + 6).sum();
+        if parts.len() > 1 && width <= room {
+            line.set_orientation(gtk::Orientation::Horizontal);
+            line.set_spacing(6);
+            for l in &parts {
+                l.set_wrap(false);
+            }
+        } else if parts.len() > 1 {
+            parts[1].set_label("↓");
+        }
+    }
+
+    /// The width of one column of the panel, in pixels: all of it, or half when it has two.
+    fn column_width(&self) -> i32 {
+        let mut w = self.scroll.hadjustment().page_size() as i32;
+        if w <= 0 {
+            w = self.scroll.width();
+        }
+        if w <= 0 {
+            w = 300; // not shown yet
+        }
+        if self.wide.get() { (w - 1) / 2 } else { w }
     }
 
     fn render_review(&self, _app: &AppRc, col: &gtk::Box, rv: &(usize, Option<(String, String, usize)>)) {
@@ -433,7 +484,7 @@ impl Panel {
         let text = if t.text.chars().count() < 160 { t.text.clone() } else { format!("{}…", t.text.chars().take(157).collect::<String>()) };
         let classes: &[&str] = match t.kind.as_str() {
             "phrase" => &["item", "bold"],
-            "spell" => &["head", "danger"],
+            "spell" => &["head", "spell-word"],
             _ => &["head"],
         };
         self.text(col, &text, classes, 0);
@@ -594,9 +645,13 @@ impl Panel {
     fn animate(&self, lbl: &gtk::Label, base: &'static str) {
         let lbl = lbl.clone();
         let dots = Rc::new(Cell::new(0));
-        let id = glib::timeout_add_local(std::time::Duration::from_millis(350), move || {
+        let tick = move || {
             dots.set((dots.get() + 1) % 4);
             lbl.set_label(&format!("{base}{}", ".".repeat(dots.get())));
+        };
+        tick(); // the first dot at once
+        let id = glib::timeout_add_local(std::time::Duration::from_millis(350), move || {
+            tick();
             glib::ControlFlow::Continue
         });
         *self.anim.borrow_mut() = Some(id);

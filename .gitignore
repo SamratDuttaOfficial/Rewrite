@@ -1,9 +1,6 @@
-# Python
+# Left behind by the earlier Python version
 .venv/
-venv/
 __pycache__/
-*.py[cod]
-*.egg-info/
 
 # Build output
 build/

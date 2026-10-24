@@ -95,6 +95,12 @@ pub fn load() -> Settings {
             clean.insert(k, v);
         }
     }
+    // a list with a wrong item keeps its good items
+    for key in ["recent", "user_words"] {
+        if let Some(Value::Array(items)) = clean.get_mut(key) {
+            items.retain(Value::is_string);
+        }
+    }
     serde_json::from_value(Value::Object(clean)).unwrap_or_default()
 }
 

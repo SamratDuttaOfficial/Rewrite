@@ -502,8 +502,8 @@ struct PvState {
     /// (status text, colour)
     state: (String, String),
     summary: String,
-    /// The document whose pages are shown (path and kind).
-    pdf_of: Option<(Option<PathBuf>, String)>,
+    /// The document whose pages are shown (its number in `Pv::doc_gen`).
+    pdf_of: Option<u64>,
     /// error tag name -> line
     error_lines: HashMap<String, u32>,
 }
@@ -524,6 +524,9 @@ struct Pv {
     message_box: gtk::Box,
     lane: Lane,
     st: RefCell<PvState>,
+    /// Counts the documents put in the editor: it goes up whenever the app loads a text or a model into it
+    /// (a new document, an opened file), and not for edits, saves or a change of format.
+    doc_gen: Rc<Cell<u64>>,
 }
 
 pub struct Preview {
@@ -633,6 +636,7 @@ impl Preview {
                 pdf_of: None,
                 error_lines: HashMap::new(),
             }),
+            doc_gen: Rc::new(Cell::new(0)),
         });
         *weak_pv.borrow_mut() = Rc::downgrade(&p);
         let w = Rc::downgrade(&p);
@@ -675,6 +679,10 @@ impl Preview {
     /// The editor's text changed.
     pub fn text_changed(&self) {
         self.p.text_changed();
+    }
+    /// Another document is in the editor: pages shown so far belong to the one before.
+    pub fn new_document(&self) {
+        self.p.doc_gen.set(self.p.doc_gen.get() + 1);
     }
     /// Stop a running build.
     pub fn stop(&self) {
@@ -765,15 +773,17 @@ impl Pv {
             return;
         }
         let line_h = self.errors.create_pango_layout(Some("Ag")).pixel_size().1.max(10) + 1;
-        let lines = shown.len().clamp(1, 6) as i32;
-        self.errors_box.set_max_content_height(lines * line_h + 10);
-        self.errors_box.set_min_content_height(lines.min(2) * line_h + 10);
+        let lines = shown.len().clamp(1, 6) as i32; // one line per error, at most six
+        let h = lines * line_h + 10;
+        // the minimum first when the box grows, the maximum first when it shrinks (min must stay <= max)
+        if h > self.errors_box.max_content_height() {
+            self.errors_box.set_max_content_height(h);
+            self.errors_box.set_min_content_height(h);
+        } else {
+            self.errors_box.set_min_content_height(h);
+            self.errors_box.set_max_content_height(h);
+        }
         self.errors_box.set_visible(true);
-    }
-
-    fn doc_key(app: &App) -> (Option<PathBuf>, String) {
-        let st = app.st.borrow();
-        (st.doc.path.clone(), st.doc.kind.clone())
     }
 
     // -- what to show ------------------------------------------------------------------------------
@@ -870,8 +880,8 @@ impl Pv {
     }
 
     /// Show the pages of another document only once they are drawn, never the previous document's.
-    fn own_pages(&self, app: &App) {
-        let key = Self::doc_key(app);
+    fn own_pages(&self) {
+        let key = self.doc_gen.get();
         let same = self.st.borrow().pdf_of.as_ref() == Some(&key);
         if !same {
             self.st.borrow_mut().pdf_of = Some(key);
@@ -901,7 +911,7 @@ impl Pv {
             st.building = true;
         }
         self.set_status("Building…", "muted");
-        self.own_pages(&app);
+        self.own_pages();
         if !self.pdf.has_data() {
             self.note("Building the PDF…");
         }
@@ -974,7 +984,7 @@ impl Pv {
         }
         self.stop_build();
         let model = app.rich().document();
-        self.own_pages(&app);
+        self.own_pages();
         if !self.pdf.has_data() {
             self.note("Laying out the pages…");
         }

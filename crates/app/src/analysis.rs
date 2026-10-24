@@ -101,6 +101,23 @@ impl App {
             }
         });
         self.text.add_controller(menu);
+        if cfg!(target_os = "macos") {
+            // a Mac's usual right-click is Control+click
+            let ctrl = gtk::GestureClick::new();
+            ctrl.set_button(gdk::BUTTON_PRIMARY);
+            ctrl.set_propagation_phase(gtk::PropagationPhase::Capture);
+            let me = self.weak();
+            ctrl.connect_pressed(move |g, _, x, y| {
+                if !g.current_event_state().contains(gdk::ModifierType::CONTROL_MASK) {
+                    return;
+                }
+                g.set_state(gtk::EventSequenceState::Claimed);
+                if let Some(app) = me.upgrade() {
+                    app.context_menu(x, y);
+                }
+            });
+            self.text.add_controller(ctrl);
+        }
         // a paste into an empty, unsaved document becomes its original
         let me = self.weak();
         self.text.connect_paste_clipboard(move |_| {
@@ -802,6 +819,8 @@ impl App {
                         me.rich().load(&m);
                         me.st.borrow_mut().loading = false;
                         me.st.borrow_mut().snap_dirty = true;
+                        me.st.borrow_mut().dirty = true;
+                        me.update_title();
                         me.analyze();
                     }
                 }
@@ -1094,14 +1113,14 @@ impl App {
     }
 
     fn prop_at(&self, off: usize) -> Option<u64> {
+        // the earliest suggestion that touches the position, as in the order of the text
         let st = self.st.borrow();
         st.proposals
             .iter()
-            .find(|(_, p)| {
-                let (a, b) = (self.buf.iter_at_mark(&p.start).offset() as usize, self.buf.iter_at_mark(&p.end).offset() as usize);
-                a <= off && off <= b
-            })
-            .map(|(&pid, _)| pid)
+            .map(|(&pid, p)| (self.buf.iter_at_mark(&p.start).offset() as usize, self.buf.iter_at_mark(&p.end).offset() as usize, pid))
+            .filter(|&(a, b, _)| a <= off && off <= b)
+            .min()
+            .map(|(_, _, pid)| pid)
     }
 
     pub fn update_review(&self) {

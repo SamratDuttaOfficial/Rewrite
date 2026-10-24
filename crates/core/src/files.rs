@@ -1,4 +1,4 @@
-//! Opening and saving documents. Mirrors `rewrite/formats.py` and the extension tables of `rewrite/native.py`.
+//! Opening and saving documents (was `rewrite/formats.py` and the extension tables of `rewrite/native.py`).
 //!
 //! Text files (plain, Markdown, LaTeX, HTML, code) are edited as text, keeping their encoding and line
 //! endings. Word, OpenDocument and RTF files are edited with their formatting ("rich") as a [`Document`].
