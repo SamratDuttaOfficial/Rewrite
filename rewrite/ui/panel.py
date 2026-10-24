@@ -14,7 +14,7 @@ TIPS = [
     ("Alt+1 … Alt+9", "applies a suggestion without the mouse."),
     ("Auto-rewrite", "does a pass over the selection or the whole document."),
     ("Red / blue underlines", "mark spelling and grammar slips; click one to fix it."),
-    ("Preview", "shows Markdown or the LaTeX PDF next to the text."),
+    ("Preview", "shows Markdown, the LaTeX PDF or a Word document as it prints."),
 ]
 
 

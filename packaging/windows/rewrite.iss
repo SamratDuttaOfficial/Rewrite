@@ -57,9 +57,19 @@ Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\shell\open\command
 Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".txt"; ValueData: ""
 Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".md"; ValueData: ""
 Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".tex"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".docx"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".doc"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".odt"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".rtf"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".pdf"; ValueData: ""
 Root: HKA; Subkey: "Software\Classes\.txt\OpenWithList\Rewrite.exe"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\.md\OpenWithList\Rewrite.exe"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\.tex\OpenWithList\Rewrite.exe"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\.docx\OpenWithList\Rewrite.exe"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\.doc\OpenWithList\Rewrite.exe"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\.odt\OpenWithList\Rewrite.exe"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\.rtf\OpenWithList\Rewrite.exe"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\.pdf\OpenWithList\Rewrite.exe"; Flags: uninsdeletekey
 
 [Run]
 Filename: "{app}\Rewrite.exe"; Description: "{cm:LaunchProgram,Rewrite}"; Flags: nowait postinstall skipifsilent

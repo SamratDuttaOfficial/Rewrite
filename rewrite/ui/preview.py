@@ -7,7 +7,7 @@ import webbrowser
 from tkinter import font as tkfont
 from tkinter import ttk
 
-from .. import latexbuild, mdrender
+from .. import latexbuild, mdrender, native, pdfcore
 from ..lane import Lane
 from .widgets import IconButton
 
@@ -287,31 +287,39 @@ class PdfView(tk.Frame):
 
         def job():
             import pypdfium2 as pdfium
-            if self._doc_version != version:
-                if self._doc is not None:
-                    self._doc.close()
-                self._doc = pdfium.PdfDocument(data)
-                self._doc_version = version
-            doc = self._doc
-            sizes = [doc.get_page_size(i) for i in range(len(doc))]
+            with pdfcore.LOCK:  # PDFium serves one thread at a time
+                if self._doc_version != version:
+                    if self._doc is not None:
+                        self._doc.close()
+                    self._doc = pdfium.PdfDocument(data)
+                    self._doc_version = version
+                doc = self._doc
+                sizes = [doc.get_page_size(i) for i in range(len(doc))]
             out = []
             for p, scale in scales.items():
-                if p >= len(doc):
-                    continue
-                page = doc[p]
-                bm = page.render(scale=scale, rev_byteorder=True)
-                arr = bm.to_numpy()
-                out.append((p, bm.width, b"P6 %d %d 255\n" % (bm.width, bm.height) + arr[:, :, :3].tobytes()))
-                bm.close()
-                page.close()
+                with pdfcore.LOCK:
+                    if p >= len(doc):
+                        continue
+                    page = doc[p]
+                    bm = page.render(scale=scale, rev_byteorder=True)
+                    arr = bm.to_numpy()
+                    out.append((p, bm.width, b"P6 %d %d 255\n" % (bm.width, bm.height) + arr[:, :, :3].tobytes()))
+                    bm.close()
+                    page.close()
             return version, sizes, out
 
         self.lane.submit(job, self._done)
 
+    def report(self, msg):
+        self.app.preview.note(msg)
+
+    def after_layout(self):
+        """The pages moved (zoom, resize, new document): subclasses put their marks back."""
+
     def _done(self, res, err):
         if err or not res or res[0] != self.version:
             if err:
-                self.app.preview.note(f"The PDF could not be shown:\n{err}")
+                self.report(f"The PDF could not be shown:\n{err}")
             return
         _, sizes, pages = res
         if sizes != self.sizes:
@@ -326,6 +334,7 @@ class PdfView(tk.Frame):
             if old:
                 self.canvas.delete(old[3])
             self.images[p] = (self.version, width, img, item)
+        self.canvas.tag_raise("ov")  # marks drawn over the pages stay on top
         self._request()
 
     # -- layout ---------------------------------------------------------------------
@@ -359,6 +368,7 @@ class PdfView(tk.Frame):
             c.tag_lower("paper")
             c.configure(scrollregion=(0, 0, total_w, y))
             c.yview_moveto(top)
+            self.after_layout()
         if request:
             self._request()
 
@@ -499,11 +509,14 @@ class PreviewPanel(tk.Frame):
         elif kind == "latex":
             self.mode = "latex"
             self.build()
+        elif kind == "rich":
+            self.mode = "rich"
+            self.build_rich()
         else:
             self.mode = None
             self.pdf.clear()
             self.set_status("")
-            self.note("The preview shows Markdown and LaTeX documents.\n\n"
+            self.note("The preview shows Markdown, LaTeX and formatted (Word, OpenDocument, RTF) documents.\n\n"
                       f"This one is treated as “{app.doc_kind_label()}”. If it is Markdown or LaTeX, click the "
                       "file name in the status bar and pick the format.")
 
@@ -513,6 +526,9 @@ class PreviewPanel(tk.Frame):
             return  # another document is being opened; refresh() follows
         if self.mode == "markdown":
             self.refresh()
+        elif self.mode == "rich":
+            self.set_status("Edited · the pages follow in a moment", "muted")
+            self.app.later("rich-preview", 1500, lambda: self.mode == "rich" and self.build_rich())
         elif self.mode == "latex" and not self.building and self.built is not None:
             if self.app.text.get("1.0", "end-1c") != self.built:
                 self.set_status("Edited · save or press ↻ to rebuild", "warn")
@@ -585,6 +601,45 @@ class PreviewPanel(tk.Frame):
             else:
                 self.set_status(self._summary)
             self.text_changed()  # typed during the build?
+
+        self.lane.submit(job, done)
+
+    def build_rich(self):
+        """Typeset a formatted document as it will print (Rewrite's own layout, as in a PDF export)."""
+        app = self.app
+        if not app.rich.active:
+            return
+        self._stop_build()
+        try:
+            model = app.rich.document()
+        except Exception as e:
+            self.set_status("Preview failed", "danger")
+            self.note(f"The document could not be laid out:\n{e}")
+            return
+        if self._pdf_of is not app.doc:
+            self._pdf_of = app.doc
+            self.pdf.clear()
+        if self.pdf.data is None:
+            self.note("Laying out the pages…")
+        self.set_status("Laying out…")
+        token = self.cancel = threading.Event()
+        generic = "sans" if (model.font or "").lower() in ("calibri", "arial", "helvetica", "segoe ui", "verdana") \
+            else "serif"
+
+        def job():
+            return native.render_pdf(model, generic)
+
+        def done(pdf, err):
+            if token is not self.cancel or self.mode != "rich":
+                return
+            self.cancel = None
+            if err:
+                self.set_status("Preview failed", "danger")
+                self.note(f"The document could not be laid out:\n{err}")
+                return
+            self.pdf.show(pdf)
+            self._show(self.pdf, pdf_tools=True)
+            self.set_status("As it prints · Rewrite's layout")
 
         self.lane.submit(job, done)
 

@@ -281,7 +281,7 @@ class AutoRewriteDialog(Dialog):
 
 HELP = f"""How Rewrite works
 
-Open a file (txt, md, tex, docx, odt, pdf, rtf, html, code …), drop one on the window, or just paste text. Then:
+Open a file (txt, md, tex, docx, doc, odt, rtf, pdf, html, code …), drop one on the window, or just paste text. Then:
 
 •  Click any word — the panel shows alternatives ranked by how well they fit that exact sentence. Click one (or press Alt+1 … Alt+9) to swap it in. Case and word form (plural, past tense …) are matched automatically.
 •  Select a phrase — you get phrase-level rewrites: phrase-book equivalents, one-word swaps and model paraphrases.
@@ -292,6 +292,12 @@ Open a file (txt, md, tex, docx, odt, pdf, rtf, html, code …), drop one on the
 •  Spelling and grammar — a red underline marks a word that is not in the dictionary, a blue one a grammar slip (agreement, verb form, a/an, easily confused words). Click the word to see the fix, or right-click it. The two buttons next to “Spelling” add the word to your dictionary or ignore it, so it is no longer marked. Both checks can be switched off in the View menu.
 •  Find and replace ({MOD}+F; {KEYS_REPLACE} opens it with replace) — a bar above the text finds as you type. Enter or {KEY_NEXT} goes to the next match, Shift+Enter or {KEY_PREV} to the previous one, Esc closes the bar. Aa matches upper and lower case, ab finds whole words only, .* takes a regular expression (\\1 in the replacement puts back the first group). “Replace all” is undone with one {MOD}+Z.
 •  Preview (the eye, {MOD}+P) — opens a second panel on the right that shows the document as it will look. Markdown follows as you type; LaTeX is compiled to a PDF every time you save (it needs a LaTeX installation such as MiKTeX, MacTeX or TeX Live). ↻ or F5 refreshes or rebuilds at any time. While the preview is open, the suggestions move below the text.
+
+Word, OpenDocument and RTF files (docx, doc, odt, fodt, rtf) open with their formatting, and File › New formatted document starts one. A second toolbar sets the paragraph style, font and size, bold ({MOD}+B), italic ({MOD}+I), underline ({MOD}+U), strike-through, superscript, subscript, colour, highlight and links ({MOD}+K), alignment, bulleted and numbered lists (Tab and Shift+Tab change the level; Enter on an empty item ends the list), and inserts pictures, tables, charts, formulas, footnotes, lines and page breaks. Double-click a picture, chart, formula or note to change it; right-click it for more. Table cells are typed in directly; right-click a cell to add or remove rows and columns. Shift+Enter starts a new line in the same paragraph. Page set-up (the page button at the right) sets the paper, margins and page numbers. All the rewriting tools work here too, and keep the formatting of the words they change. Save writes the same format back; Save as can switch between Word, OpenDocument and RTF (.doc needs LibreOffice).
+
+PDF files open in the PDF view. Its toolbar picks a tool: select text (then {MOD}+C copies it, or right-click to mark it), edit a line of text (click it, type, Enter), add text, highlight, underline, strike out, sticky notes, drawing, white-out boxes, rectangles and pictures. The page buttons turn, move, delete and insert pages, and put in the pages of another PDF. Every change can be undone with {MOD}+Z. “Convert to document” turns the PDF into an editable formatted document: headings, paragraphs, lists, tables, footnotes and pictures are recognised, charts and formulas are kept as pictures, and words broken at line ends are joined (or kept as compounds) with the dictionary and the language model deciding the doubtful cases.
+
+Export / convert ({MOD}+Shift+E, the arrow-out-of-a-box button) writes what is open as PDF, Word, OpenDocument, RTF, Word 97–2003, HTML, Markdown, LaTeX or plain text. A PDF can be typeset by Rewrite itself, by LaTeX (for LaTeX and Markdown files, when LaTeX is installed) or by LibreOffice (for formatted documents). For Markdown, LaTeX and text, “One sentence per line” puts each sentence on its own line, with sentence ends found by the language model (so “e.g.” or “Fig. 3” do not split a sentence). Pictures are saved next to the exported file.
 
 The buttons are icons: rest the mouse on one to see what it does. The status bar at the bottom shows the file format (click it to change which parts are protected) and whether the smart models are loaded.
 
@@ -310,7 +316,8 @@ Keyboard
   {MOD}+F find   {KEYS_REPLACE} replace   {KEY_NEXT} / {KEY_PREV} next / previous match
   Ctrl+Space  suggestions at cursor   {MOD}+E rephrase sentence
   {MOD}+=  / {MOD}+-  text size   {MOD}+0 reset size
-  {MOD}+P  preview panel   F5 refresh preview / rebuild PDF
+  {MOD}+P  preview panel   F5 refresh preview / rebuild PDF   {MOD}+Shift+E export / convert
+  {MOD}+B / I / U  bold / italic / underline   {MOD}+K link   Shift+Enter line break (formatted documents)
 
 Everything runs locally on your computer. Models: RoBERTa-base (context), all-MiniLM-L6-v2 (meaning check), and a T5-base paraphraser, run with ONNX Runtime. Thesaurus: Princeton WordNet 3.0.
 

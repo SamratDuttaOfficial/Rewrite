@@ -9,16 +9,21 @@ import sys
 import threading
 import time
 import traceback
+import webbrowser
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from . import __author__, __url__, __version__, formats, models, phrases, proof
+from . import __author__, __url__, __version__, docmodel, formats, models, native, phrases, proof
 from .engine import Engine
 from .lane import Lane
+from .rich import RichEditor
 from .textutil import WORD_RE, sentence_bounds
+from .ui import objects
 from .ui.dialogs import KEY_NEXT, KEY_PREV, KEY_REPLACE, MOD, AutoRewriteDialog, HelpDialog, ModelsDialog
 from .ui.findbar import FindBar
+from .ui.formatbar import FormatBar
 from .ui.panel import SuggestionPanel
+from .ui.pdfmode import PdfBar, PdfEditor
 from .ui.preview import PreviewPanel
 from .ui.theme import Theme
 from .ui.widgets import FlatButton, IconButton, Toggle, Tooltip
@@ -27,6 +32,9 @@ ASTRAL = re.compile("[\U00010000-\U0010FFFF]")
 MODKEY = "Command" if sys.platform == "darwin" else "Control"
 ASSETS = os.path.join(os.path.dirname(__file__), "assets")
 GRAMMAR_BATCH = 300  # sentences the context model reads per pass, nearest to the view first
+
+
+PDF_HINT = "To rewrite a PDF's text, use Convert to document; the pencil tool changes a line in place."
 
 
 class Snapshot:
@@ -181,6 +189,7 @@ class App:
         self._proof_base, self._proof_more, self._found = None, False, []
         self._gram_cache = {}  # sentence -> context-model grammar slips, so only edited sentences are rechecked
         self.preview_on = False
+        self.mode = "plain"  # plain (text) | rich (formatted document) | pdf
         self.cancel_flag = threading.Event()
         self.models_state = "loading"
         self.lane_word = Lane(self, "words")
@@ -237,9 +246,14 @@ class App:
 
     def refresh_snapshot(self):
         if self.snap_dirty or self.snap.text is None:
-            self.snap = Snapshot(self.text.get("1.0", "end-1c"))
+            self.snap = Snapshot(self.editor_text())
             self.snap_dirty = False
         return self.snap
+
+    def editor_text(self):
+        """The editor's text; in a formatted document every embedded object counts as one U+FFFC, so
+        that offsets in it match the widget's indices."""
+        return self.rich.plain() if self.rich.active else self.text.get("1.0", "end-1c")
 
     # -- UI construction ------------------------------------------------------------
     def build(self):
@@ -268,6 +282,8 @@ class App:
         IconButton(bar, t, "redo", self.redo, f"Redo ({MOD}+Y)").pack(side="left")
         IconButton(bar, t, "search", lambda: self.find.open(),
                    f"Find and replace ({MOD}+F, {KEY_REPLACE})").pack(side="left")
+        IconButton(bar, t, "export", self.export_dialog,
+                   f"Export or convert: PDF, Word, OpenDocument, Markdown, LaTeX, text … ({MOD}+Shift+E)").pack(side="left")
         self._sep(bar)
         IconButton(bar, t, "pencil", self.rephrase_sentence,
                    f"Rephrase the sentence at the cursor ({MOD}+E)").pack(side="left")
@@ -286,7 +302,7 @@ class App:
                               tip="Phrase hints: underline wordy phrases that have ready alternatives")
         self.t_hints.pack(side="right", padx=(t.px(2), 0))
         self.t_preview = Toggle(bar, t, "eye", False, self.set_preview,
-                                tip=f"Preview: the document as it will look, Markdown or the LaTeX PDF ({MOD}+P)")
+                                tip=f"Preview: the document as it will look: Markdown, the LaTeX PDF, or a formatted document as it prints ({MOD}+P)")
         self.t_preview.pack(side="right")
 
         # body: editor | suggestions. With the preview open: (editor over suggestions) | preview.
@@ -308,6 +324,11 @@ class App:
         self.text.pack(side="left", fill="both", expand=True)
         self.find = FindBar(ed, self)  # shown above the text by Ctrl+F
         self.color_editor()
+        self.rich = RichEditor(self)
+        self.formatbar = FormatBar(r, self)  # shown under the toolbar for formatted documents
+        self.rich.on_change = self.formatbar.refresh
+        self.pdfview = PdfEditor(r, self)  # takes the editor's place for PDF files
+        self.pdfbar = PdfBar(r, self)
         self.panel_frame = tk.Frame(r, bd=0, width=t.px(320), height=t.px(220))
         self.panel_frame.pack_propagate(False)
         t.paint(self.panel_frame, bg="panel")
@@ -345,6 +366,7 @@ class App:
         self.msg.pack(side="right")
 
         self.bind_keys()
+        self.rich.install_keys()
         self.text.bind("<Configure>", self._center_column)
         r.bind_all("<MouseWheel>", self._wheel, add="+")
         r.bind_all("<Button-4>", self._wheel, add="+")
@@ -376,6 +398,11 @@ class App:
     def set_preview(self, on, save=True):
         """Show or hide the preview. While it is open, the suggestions sit below the editor."""
         on = bool(on)
+        if on and self.mode == "pdf":
+            self.t_preview.set(False)
+            self.preview_var.set(False)
+            self.flash_msg("A PDF is shown as it is; the preview is for text and formatted documents.")
+            return
         if on != self.preview_on:
             if on:
                 self.pane.forget(self.panel_frame)
@@ -505,15 +532,20 @@ class App:
             return sub
 
         f = menu("File")
-        f.add_command(label="New", accelerator=f"{acc}+N", command=self.new_file)
+        f.add_command(label="New text", accelerator=f"{acc}+N", command=self.new_file)
+        f.add_command(label="New formatted document", command=lambda: self.new_file(rich=True))
         f.add_command(label="Open…", accelerator=f"{acc}+O", command=self.open_file)
         self.recent_menu = tk.Menu(f, tearoff=0)
         f.add_cascade(label="Open recent", menu=self.recent_menu)
         f.add_separator()
         f.add_command(label="Save", accelerator=f"{acc}+S", command=self.save)
         f.add_command(label="Save as…", accelerator=f"{acc}+Shift+S", command=lambda: self.save(as_=True))
+        f.add_command(label="Export / convert…", accelerator=f"{acc}+Shift+E", command=self.export_dialog)
+        f.add_separator()
+        f.add_command(label="Page set-up…", command=self.page_setup)
         f.add_separator()
         f.add_command(label="Quit", command=self.quit)
+        self.file_menu = f
         e = menu("Edit")
         e.add_command(label="Undo", accelerator=f"{acc}+Z", command=self.undo)
         e.add_command(label="Redo", accelerator=f"{acc}+Y", command=self.redo)
@@ -530,6 +562,32 @@ class App:
         e.add_separator()
         e.add_command(label="Use current text as the original", command=self.mark_original)
         e.add_command(label="Revert everything to the original", command=self.revert_all)
+        ins = menu("Insert")
+        for label, kind in (("Picture…", "image"), ("Table…", "table"), ("Chart…", "chart"), ("Formula…", "math"),
+                            ("Footnote…", "note"), ("Link…", "link"), ("Horizontal line", "rule"),
+                            ("Page break", "pagebreak")):
+            ins.add_command(label=label, accelerator=f"{acc}+K" if kind == "link" else "",
+                            command=lambda k=kind: self.rich_insert(k))
+        self.insert_menu = ins
+        fm = menu("Format")
+        for label, name, key in (("Bold", "b", f"{acc}+B"), ("Italic", "i", f"{acc}+I"), ("Underline", "u", f"{acc}+U"),
+                                 ("Strikethrough", "s", ""), ("Superscript", "sup", ""), ("Subscript", "sub", "")):
+            fm.add_command(label=label, accelerator=key, command=lambda n=name: self._fmt(lambda r: r.toggle(n)))
+        fm.add_command(label="Clear formatting", command=lambda: self._fmt(lambda r: r.clear_format()))
+        fm.add_separator()
+        styles = tk.Menu(fm, tearoff=0)
+        for s in ("normal", "title", "subtitle", "h1", "h2", "h3", "quote", "caption", "code"):
+            styles.add_command(label={"code": "Code"}.get(s, docmodel.STYLE_LABEL.get(s, s)),
+                               command=lambda s=s: self._fmt(lambda r: r.set_para(style=s)))
+        fm.add_cascade(label="Paragraph style", menu=styles)
+        for label, a in (("Align left", None), ("Centre", "center"), ("Align right", "right"), ("Justify", "justify")):
+            fm.add_command(label=label, command=lambda a=a: self._fmt(lambda r: r.set_para(align=a)))
+        fm.add_separator()
+        fm.add_command(label="Bulleted list", command=lambda: self._fmt(lambda r: r.toggle_list("bullet")))
+        fm.add_command(label="Numbered list", command=lambda: self._fmt(lambda r: r.toggle_list("number")))
+        fm.add_command(label="Increase indent", command=lambda: self._fmt(lambda r: r.change_level(1)))
+        fm.add_command(label="Decrease indent", command=lambda: self._fmt(lambda r: r.change_level(-1)))
+        self.format_menu = fm
         w = menu("Rewrite")
         w.add_command(label="Suggestions at cursor", accelerator="Ctrl+Space", command=self.popup_at_cursor)
         w.add_command(label="Rephrase sentence", accelerator=f"{acc}+E", command=self.rephrase_sentence)
@@ -577,6 +635,8 @@ class App:
         both(f"<{K}-Shift-s>", lambda: self.save(as_=True))
         both(f"<{K}-n>", self.new_file)
         both(f"<{K}-e>", self.rephrase_sentence)
+        both(f"<{K}-E>", self.export_dialog)
+        both(f"<{K}-Shift-e>", self.export_dialog)
         both(f"<{K}-f>", self.find.open)
         both(f"<{K}-r>", lambda: self.find.open(replace=True))
         if sys.platform == "darwin":  # Cmd+H hides the app; Cmd+G finds the next match
@@ -646,7 +706,39 @@ class App:
             self.panel.scroll.wheel(e)
 
     # -- documents -------------------------------------------------------------------
+    def set_mode(self, mode):
+        """plain: text files; rich: formatted documents (the format bar shows); pdf: the PDF view."""
+        if mode == self.mode:
+            return
+        if self.mode == "rich":
+            self.rich.detach()
+            self.formatbar.pack_forget()
+        if self.mode == "pdf":
+            self.pdfbar.pack_forget()
+            self.left.insert(0, self.editor_frame, weight=5)
+            self.left.forget(self.pdfview)
+            self.pane.add(self.panel_frame, weight=0)
+            self.root.after(60, self._place_sash)
+        self.mode = mode
+        if mode == "rich":
+            self.formatbar.pack(fill="x", padx=self.theme.px(6), pady=(0, self.theme.px(3)), after=self.toolbar)
+        if mode == "pdf":
+            if self.preview_on:
+                self.set_preview(False, save=False)
+            self.pdfbar.pack(fill="x", padx=self.theme.px(6), pady=(0, self.theme.px(3)), after=self.toolbar)
+            self.left.insert(0, self.pdfview, weight=5)
+            self.left.forget(self.editor_frame)
+            self.pane.forget(self.panel_frame)
+        for menu in (self.insert_menu, self.format_menu):
+            last = menu.index("end")
+            for k in range(0, (last or 0) + 1):
+                try:
+                    menu.entryconfigure(k, state="normal" if mode == "rich" else "disabled")
+                except tk.TclError:
+                    pass
+
     def set_text(self, text, original=None):
+        self.set_mode("plain")
         self.text.configure(state="normal")
         self.clear_proposals()
         self.text.delete("1.0", "end")
@@ -654,6 +746,21 @@ class App:
         self.text.edit_reset()
         self.text.edit_modified(False)
         self.text.mark_set("insert", "1.0")
+        self._fresh(text, original)
+
+    def set_rich(self, model):
+        """Show a formatted document (a docmodel Document) for editing."""
+        self.set_mode("rich")
+        self.text.configure(state="normal")
+        self.clear_proposals()
+        self.rich.load(model)
+        self.text.edit_modified(False)
+        self.rich_original = model
+        self._fresh(self.rich.plain(), None)
+        self.formatbar.refresh()
+
+    def _fresh(self, text, original):
+        """A document was just put in the editor: forget everything about the previous one."""
         self.original = text if original is None else original
         self.snap = Snapshot(text)
         self.snap_dirty = False
@@ -674,8 +781,9 @@ class App:
         dot = "• " if self.dirty else ""
         self.root.title(f"{dot}{name} — Rewrite")
         kind = formats.KIND_LABEL.get(self.doc.kind, self.doc.kind)
-        src = f" · imported from {self.doc.source_ext}" if self.doc.source_ext else ""
-        self.status_file.configure(text=f"{name}  ·  {kind}{src}")
+        if self.doc.kind in ("rich", "pdf") and self.doc.ext:
+            kind = formats.FORMAT_LABEL.get(self.doc.ext, kind)
+        self.status_file.configure(text=f"{name}  ·  {kind}")
 
     def confirm_discard(self):
         if not self.dirty:
@@ -687,11 +795,26 @@ class App:
             return self.save()
         return True
 
-    def new_file(self):
+    def new_file(self, rich=False):
         if self.busy or not self.confirm_discard():
             return
-        self.doc = formats.Document()
-        self.set_text("")
+        if rich:
+            if not self._native_ready():
+                return
+            self.doc = formats.Document(kind="rich", model=docmodel.Document())
+            self.set_rich(self.doc.model)
+        else:
+            self.doc = formats.Document()
+            self.set_text("")
+
+    def _native_ready(self):
+        if native.available():
+            return True
+        messagebox.showerror("Document engine missing",
+                             "Formatted documents and PDF need Rewrite's document engine, which is not built.\n\n"
+                             "Start Rewrite with  python run.py  so it can build it (it needs Rust from rustup.rs).\n\n"
+                             f"{native.ERROR or ''}", parent=self.root)
+        return False
 
     def open_file(self, path=None):
         if self.busy or not self.confirm_discard():
@@ -702,20 +825,30 @@ class App:
                                               initialdir=self.settings.get("last_dir") or os.path.expanduser("~"))
         if not path:
             return False
+        ext = os.path.splitext(path)[1].lower()
+        if (ext in formats.RICH or ext == ".pdf") and not self._native_ready():
+            return False
         try:
+            self.root.configure(cursor="watch")
+            self.root.update_idletasks()
             doc = formats.load(path)
         except Exception as e:
             messagebox.showerror("Could not open file", f"{os.path.basename(path)}\n\n{e}", parent=self.root)
             return False
+        finally:
+            self.root.configure(cursor="")
         self.doc = doc
         self.settings["last_dir"] = os.path.dirname(path)
         recent = [p for p in self.settings.get("recent", []) if p != path]
         self.settings["recent"] = [path] + recent[:7]
         models.save_settings(self.settings)
         self.update_recent_menu()
-        self.set_text(doc.text)
-        if doc.source_ext in (".pdf", ".docx", ".odt", ".rtf"):
-            self.flash_msg(f"Imported text from {doc.source_ext} — saving creates a new file.")
+        if doc.kind == "rich":
+            self.set_rich(doc.model)
+        elif doc.kind == "pdf":
+            self.open_pdf(doc)
+        else:
+            self.set_text(doc.text)
         return True
 
     def update_recent_menu(self):
@@ -729,25 +862,45 @@ class App:
     def save(self, as_=False):
         if self.busy:
             return False
-        text = self.text.get("1.0", "end-1c")
+        if self.mode == "pdf":
+            return self.pdfview.save(as_)
         path = self.doc.path
-        if as_ or not path or self.doc.source_ext in formats.BINARY_IMPORT:
-            base, ext = os.path.splitext(os.path.basename(path)) if path else ("untitled", "")
-            if self.doc.source_ext in formats.BINARY_IMPORT:
-                base, ext = base + "-rewritten", ".docx" if self.doc.source_ext in (".docx", ".odt") else ".txt"
-            ext = ext or {"latex": ".tex", "markdown": ".md", "html": ".html"}.get(self.doc.kind, ".txt")
+        rich = self.mode == "rich"
+        if rich and path and os.path.splitext(path)[1].lower() not in formats.SAVE_RICH:
+            path = None  # a template or other read-only kind: save under a new name
+        if as_ or not path:
+            base, ext = os.path.splitext(os.path.basename(path or self.doc.path or "")) if (path or self.doc.path) \
+                else ("untitled", "")
+            if rich:
+                ext = ext if ext in (".docx", ".odt", ".fodt", ".rtf", ".doc") else ".docx"
+                types = sorted(formats.SAVE_RICH_TYPES, key=lambda x: x[1] != "*" + ext)
+            else:
+                ext = ext or {"latex": ".tex", "markdown": ".md", "html": ".html"}.get(self.doc.kind, ".txt")
+                types = [("Same as original", "*" + ext), ("Text", "*.txt"), ("Markdown", "*.md"), ("LaTeX", "*.tex"),
+                         ("All files", "*.*")]
             path = filedialog.asksaveasfilename(
                 parent=self.root, title="Save as", initialfile=base + ext, defaultextension=ext,
-                initialdir=os.path.dirname(path) if path else self.settings.get("last_dir"),
-                filetypes=[("Same as original", "*" + ext), ("Text", "*.txt"), ("Markdown", "*.md"),
-                           ("LaTeX", "*.tex"), ("Word document", "*.docx"), ("All files", "*.*")])
+                initialdir=os.path.dirname(self.doc.path) if self.doc.path else self.settings.get("last_dir"),
+                filetypes=types)
             if not path:
                 return False
         try:
-            formats.save(self.doc, text, path)
+            if rich:
+                if os.path.splitext(path)[1].lower() not in formats.SAVE_RICH:
+                    path += ".docx"
+                self.root.configure(cursor="watch")
+                self.root.update_idletasks()
+                model = self.rich.document()
+                formats.save_rich(model, path)
+                self.doc.path, self.doc.source_ext = path, os.path.splitext(path)[1].lower()
+                self.doc.model = model
+            else:
+                formats.save(self.doc, self.text.get("1.0", "end-1c"), path)
         except Exception as e:
             messagebox.showerror("Could not save", str(e), parent=self.root)
             return False
+        finally:
+            self.root.configure(cursor="")
         self.dirty = False
         self.update_title()
         self.flash_msg(f"Saved {os.path.basename(path)}")
@@ -756,6 +909,9 @@ class App:
         return True
 
     def pick_kind(self):
+        if self.mode != "plain":
+            self.flash_msg("Formatted documents and PDFs keep their format; use Export to convert them.")
+            return
         m = tk.Menu(self.root, tearoff=0)
         self._kind_var = tk.StringVar(value=self.doc.kind)
         m.add_command(label="Which parts are protected from changes?", state="disabled")
@@ -777,7 +933,7 @@ class App:
             self.preview.refresh()
 
     def _on_paste(self, e):
-        if not self.text.get("1.0", "end-1c").strip():
+        if self.mode == "plain" and not self.text.get("1.0", "end-1c").strip():
             def after():
                 txt = self.text.get("1.0", "end-1c")
                 if not self.doc.path:
@@ -813,7 +969,11 @@ class App:
         if st and text[st[0]:st[1]] != st[2]:  # the sentence was edited: its rewrites are stale
             self.sent_target, self.sent_items = None, []
             self.panel.set_sentence("idle")
-        self.protected = formats.protected_spans(text, self.doc.kind, self.doc.path)
+        if self.rich.active:
+            self.protected = formats.merge(self.rich.protected(snap) +
+                                           formats.protected_spans(text, "plain"))
+        else:
+            self.protected = formats.protected_spans(text, self.doc.kind, self.doc.path)
         self._retag("prot", self.protected, snap)
         hints = []
         for s, e, _ in phrases.find(text):
@@ -878,6 +1038,7 @@ class App:
             self._proof_done(gen, snap, [])
             return
         text, prot, eng, cache = snap.text, self.protected, self.engine, self._gram_cache
+        lines = self.rich.active
         try:
             focus = snap.offset(self.text.index("@0,0"))
         except (ValueError, tk.TclError):
@@ -899,7 +1060,7 @@ class App:
             # text is not read to the end: the rest follows when the view moves there.
             slips, budget, more = [], GRAMMAR_BATCH, False
             last, fresh = time.time(), False
-            for s, e in sorted(sentence_bounds(text), key=lambda se: abs(se[0] - focus)):
+            for s, e in sorted(sentence_bounds(text, lines), key=lambda se: abs(se[0] - focus)):
                 sent, spans = text[s:e], formats.clip(prot, s, e)
                 key = (sent, tuple(spans))
                 found = cache.get(key)
@@ -1036,7 +1197,7 @@ class App:
         ws = para + 2 if para >= 0 else ws
         we = text.find("\n\n", e, e + 3000)
         we = we if we >= 0 else min(len(text), e + 3000)
-        sents = [(ws + a, ws + b) for a, b in sentence_bounds(text[ws:we])]
+        sents = [(ws + a, ws + b) for a, b in sentence_bounds(text[ws:we], self.rich.active)]
         cur = [k for k, (a, b) in enumerate(sents) if a <= e and s <= b]
         if not cur:
             return max(ws, s - 300), min(we, e + 300)
@@ -1047,7 +1208,7 @@ class App:
     def _sentence_at(self, text, off):
         ws = max(0, off - 4000)
         we = min(len(text), off + 4000)
-        for a, b in sentence_bounds(text[ws:we]):
+        for a, b in sentence_bounds(text[ws:we], self.rich.active):
             if ws + a <= off <= ws + b:
                 return ws + a, ws + b
         return None
@@ -1189,10 +1350,8 @@ class App:
             self.root.bell()
             self.flash_msg("The text changed — click the word again.")
             return False
-        i1, i2 = snap.index(s), snap.index(e)
         with self.one_step():
-            self.text.delete(i1, i2)
-            self.text.insert(i1, new)
+            self._put_text(snap, s, e, new)
         self.snap_dirty = True
         snap = self.refresh_snapshot()
         j1, j2 = snap.index(s), snap.index(s + len(new))
@@ -1203,6 +1362,21 @@ class App:
         self.text.see("insert")
         self.analyze()
         return True
+
+    def _put_text(self, snap, s, e, new):
+        """Replace snap.text[s:e] with new. In a formatted document only the words that differ are
+        replaced, so everything else keeps its formatting and paragraphs keep their styles."""
+        if self.rich.active:
+            pieces = diff_chunks(snap.text[s:e], new)
+            if pieces or snap.text[s:e] == new:
+                for a, b, rep in reversed(pieces):
+                    i1, i2 = snap.index(s + a), snap.index(s + b)
+                    self.text.delete(i1, i2)
+                    self.text.insert(i1, rep)
+                return
+        i1, i2 = snap.index(s), snap.index(e)
+        self.text.delete(i1, i2)
+        self.text.insert(i1, new)
 
     def revert_here(self):
         ch = getattr(self, "current_change", None)
@@ -1215,6 +1389,13 @@ class App:
 
     def revert_all(self):
         if self.busy or not self.original:
+            return
+        if self.mode == "rich":
+            if messagebox.askyesno("Revert everything", "Go back to the document as it was opened? "
+                                   "(This cannot be undone.)", parent=self.root):
+                self.rich.load(self.rich_original)
+                self.snap_dirty = True
+                self.analyze()
             return
         if messagebox.askyesno("Revert everything", "Replace the text with the original version? "
                                "(You can undo this.)", parent=self.root):
@@ -1230,6 +1411,9 @@ class App:
     # -- sentences ------------------------------------------------------------------------
     def rephrase_sentence(self, more=False):
         if self.busy:
+            return
+        if self.mode == "pdf":
+            self.flash_msg(PDF_HINT, 8000)
             return
         snap = self.refresh_snapshot()
         text = snap.text
@@ -1286,6 +1470,9 @@ class App:
     def auto_rewrite(self):
         if self.busy:
             return
+        if self.mode == "pdf":
+            self.flash_msg(PDF_HINT, 8000)
+            return
         AutoRewriteDialog(self, bool(self.text.tag_ranges("sel")), self._run_auto)
 
     def _run_auto(self, opts):
@@ -1312,6 +1499,8 @@ class App:
 
         def progress(k, n):
             self.post(lambda: self._auto_progress(k, n, started))
+
+        opts = dict(opts, lines=self.rich.active)
 
         def job():
             return eng.auto_rewrite(text, regions, prot, opts, progress=progress, cancelled=flag.is_set)
@@ -1343,7 +1532,7 @@ class App:
             messagebox.showerror("Auto-rewrite failed", str(err), parent=self.root)
             return
         edits = edits or []
-        if self.text.get("1.0", "end-1c") != snap.text:
+        if self.editor_text() != snap.text:
             messagebox.showwarning("Auto-rewrite", "The text changed while rewriting; nothing was applied.",
                                    parent=self.root)
             return
@@ -1358,8 +1547,7 @@ class App:
             return
         with self.one_step():
             for s, e, new, _whole in sorted(edits, reverse=True):
-                self.text.delete(snap.index(s), snap.index(e))
-                self.text.insert(snap.index(s), new)
+                self._put_text(snap, s, e, new)
         self.snap_dirty = True
         if not self.settings.get("show_changes", True):
             self.t_changes.set(True)
@@ -1526,6 +1714,8 @@ class App:
         return "break"
 
     def popup_at_cursor(self):
+        if self.mode == "pdf":
+            return
         self.update_target()
         t = self.target
         if t and t.get("items") is None:
@@ -1585,6 +1775,249 @@ class App:
             m.tk_popup(x, y)
         finally:
             m.grab_release()
+
+    # -- formatted documents ------------------------------------------------------------------
+    def _fmt(self, fn):
+        if self.rich.active and not self.busy:
+            fn(self.rich)
+            self.text.focus_set()
+            self.formatbar.refresh()
+
+    def rich_insert(self, kind):
+        if not self.rich.active or self.busy:
+            self.flash_msg("Pictures, tables and the like go into formatted documents "
+                           "(File › New formatted document, or open a Word or OpenDocument file).")
+            return
+        put = self.rich.insert_object
+        if kind == "image":
+            path = filedialog.askopenfilename(parent=self.root, title="Insert a picture",
+                                              filetypes=objects.PICTURE_TYPES,
+                                              initialdir=self.settings.get("last_dir") or os.path.expanduser("~"))
+            obj = objects.load_picture(self, path) if path else None
+            if obj:
+                put(obj)
+        elif kind == "table":
+            objects.TableDialog(self, put)
+        elif kind == "chart":
+            chart = {"type": "chart", "kind": "bar", "title": "", "categories": ["A", "B", "C"],
+                     "series": [["Series 1", [3.0, 5.0, 2.0]]], "x_title": "", "y_title": "", "legend": True,
+                     "width": 432.0, "height": 252.0}
+            objects.ChartDialog(self, chart, put)
+        elif kind == "math":
+            objects.MathDialog(self, {"type": "math", "tex": "", "display": False}, put)
+        elif kind == "note":
+            objects.NoteDialog(self, {"type": "note", "runs": []}, lambda o: put(o) if o.get("runs") else None)
+        elif kind == "link":
+            self.rich_link()
+        elif kind in ("rule", "pagebreak"):
+            put({"type": kind})
+        self.text.focus_set()
+
+    def rich_link(self):
+        if not self.rich.active or self.busy:
+            return
+        sel = self.rich.selection()  # the dialog's entry takes the selection away; remember it
+        fmt, _ = self.rich.state()
+
+        def done(url, text):
+            if sel:
+                self.text.tag_add("sel", *sel)
+                self.rich.set_value("link", url)
+            elif url and text:
+                with self.one_step():
+                    start = self.text.index("insert")
+                    self.text.insert("insert", text)
+                    end = self.text.index("insert")
+                self.text.tag_add("sel", start, end)
+                self.rich.set_value("link", url)
+                self.text.tag_remove("sel", "1.0", "end")
+            self.text.focus_set()
+
+        objects.LinkDialog(self, fmt.get("link"), None if sel else "", done)
+
+    def open_link(self, url):
+        if url.startswith(("http://", "https://", "mailto:")):
+            webbrowser.open(url)
+        else:
+            self.flash_msg(f"Link: {url}")
+
+    def rich_edit_object(self, oid):
+        obj = self.rich.objects.get(oid)
+        if not obj or self.busy:
+            return
+        kind = obj.get("type")
+
+        def set_(new):
+            self.rich.set_object(oid, new)
+        if kind == "image":
+            objects.ImageDialog(self, obj, set_)
+        elif kind == "chart":
+            objects.ChartDialog(self, obj, set_)
+        elif kind == "math":
+            objects.MathDialog(self, obj, set_)
+        elif kind == "note":
+            objects.NoteDialog(self, obj, set_)
+        elif kind == "opaque":
+            self.flash_msg("This part is kept exactly as it was in the original file; it cannot be edited here.")
+
+    def rich_object_menu(self, oid, e):
+        obj = self.rich.objects.get(oid)
+        if not obj:
+            return
+        m = tk.Menu(self.root, tearoff=0)
+        kind = obj.get("type")
+        label = {"image": "Picture…", "chart": "Edit chart…", "math": "Edit formula…", "note": "Edit note…"}.get(kind)
+        if label:
+            m.add_command(label=label, command=lambda: self.rich_edit_object(oid))
+        if kind == "image":
+            m.add_command(label="Save picture as…", command=lambda: self._save_picture(obj))
+        m.add_command(label="Delete", command=lambda: self._delete_object(oid))
+        try:
+            m.tk_popup(e.x_root, e.y_root)
+        finally:
+            m.grab_release()
+
+    def _delete_object(self, oid):
+        idx = self.rich.object_index(oid)
+        if idx:
+            with self.one_step():
+                self.text.delete(idx)
+            self.text.focus_set()
+
+    def _save_picture(self, obj):
+        ext = "." + (obj.get("ext") or "png").replace("jpeg", "jpg")
+        path = filedialog.asksaveasfilename(parent=self.root, title="Save picture", defaultextension=ext,
+                                            initialfile=os.path.splitext(obj.get("name") or "picture")[0] + ext)
+        if path:
+            with open(path, "wb") as f:
+                f.write(bytes(obj.get("data") or b""))
+
+    def rich_table_menu(self, oid, r, k, e):
+        view = self.rich.views.get(oid)
+        if view is None:
+            return
+
+        def change(fn):
+            obj = view.read()
+            rows = obj.setdefault("rows", [])
+            n = max([len(x) for x in rows] + [1])
+            for row in rows:
+                while len(row) < n:
+                    row.append([])
+            fn(obj, rows, n)
+            self.rich.set_object(oid, obj)
+
+        empty = lambda: [{"content": [], "style": "normal", "align": None, "list": None, "indent": 0}]  # noqa: E731
+        m = tk.Menu(self.root, tearoff=0)
+        m.add_command(label="Insert row above", command=lambda: change(lambda o, rows, n: rows.insert(r, [empty() for _ in range(n)])))
+        m.add_command(label="Insert row below", command=lambda: change(lambda o, rows, n: rows.insert(r + 1, [empty() for _ in range(n)])))
+        m.add_command(label="Delete row", command=lambda: change(lambda o, rows, n: rows.pop(r) if len(rows) > 1 else None))
+        m.add_separator()
+        m.add_command(label="Insert column left", command=lambda: change(lambda o, rows, n: [row.insert(k, empty()) for row in rows]))
+        m.add_command(label="Insert column right", command=lambda: change(lambda o, rows, n: [row.insert(k + 1, empty()) for row in rows]))
+        m.add_command(label="Delete column", command=lambda: change(lambda o, rows, n: [row.pop(k) for row in rows] if n > 1 else None))
+        m.add_separator()
+        m.add_command(label="Header row on / off", command=lambda: change(lambda o, rows, n: o.update(header=not o.get("header"))))
+        m.add_command(label="Delete table", command=lambda: self._delete_object(oid))
+        try:
+            m.tk_popup(e.x_root, e.y_root)
+        finally:
+            m.grab_release()
+        return "break"
+
+    def page_setup(self):
+        if self.mode != "rich":
+            self.flash_msg("Page set-up is for formatted documents; for an export, pick the paper in the Export dialog.")
+            return
+        objects.PageSetupDialog(self, self.rich.base.page, self.rich.set_page)
+
+    def export_dialog(self):
+        """Write what is open as another format (PDF, Word, OpenDocument, Markdown, LaTeX, text …)."""
+        if self.busy:
+            return
+        if not self._native_ready():
+            return
+        from . import exporting
+        from .ui.export import ExportDialog
+        name = self.doc.name if self.doc.path else (getattr(self, "suggest_name", None) or "document")
+        if self.mode == "pdf":
+            src = exporting.Source("pdf", name, self.doc.path, data=self.pdfview.data)
+        elif self.mode == "rich":
+            try:
+                model = self.rich.document()
+            except Exception as e:
+                messagebox.showerror("Export", f"The document could not be read from the editor.\n\n{e}",
+                                     parent=self.root)
+                return
+            src = exporting.Source("rich", name, self.doc.path, model=model)
+        else:
+            src = exporting.Source(self.doc.kind, name, self.doc.path, text=self.text.get("1.0", "end-1c"),
+                                   encoding=self.doc.encoding if self.doc.source_ext is None else "utf-8")
+        ExportDialog(self, src)
+
+    def open_pdf(self, doc):
+        self.clear_proposals()
+        self.set_mode("pdf")
+        self.text.configure(state="normal")
+        self.text.delete("1.0", "end")
+        self.text.edit_reset()
+        self.text.edit_modified(False)
+        self.pdfview.load(doc.data, doc.path)
+        self._fresh("", None)
+        self.pdf_changed(dirty=False)
+
+    def pdf_changed(self, dirty=True):
+        """The PDF was changed (or undone): show it in the title and the status bar."""
+        self.dirty = dirty and bool(self.pdfview.undo_stack)
+        self.doc.data = self.pdfview.data
+        self.update_title()
+        n = len(self.pdfview.pages)
+        self.status_stats.configure(text=f"{n} page{'s' if n != 1 else ''}")
+
+    def convert_pdf(self):
+        """Make an editable document of the PDF: paragraphs, headings, lists, tables and pictures, with
+        broken words and sentences mended by the language model."""
+        if self.mode != "pdf" or self.busy or not self.confirm_discard():
+            return
+        from . import cleanup, pdfdoc
+        data = self.pdfview.data
+        name = os.path.splitext(self.doc.name)[0]
+        self.busy = True
+        flag = self.cancel_flag = threading.Event()
+        self.msg.pack_forget()
+        self.progress["value"] = 0
+        self.cancel_btn.pack(side="right", padx=(self.theme.px(8), 0))
+        self.progress.pack(side="right")
+        self.progress_lbl.configure(text="Reading the PDF…")
+        self.progress_lbl.pack(side="right", padx=(0, self.theme.px(8)))
+        helper = cleanup.Helper(self.engine)
+
+        def progress(k, n):
+            def show():
+                self.progress["value"] = int(1000 * k / max(1, n))
+                self.progress_lbl.configure(text=f"Reading page {k + 1} of {n}")
+            self.post(show)
+
+        def job():
+            return pdfdoc.to_document(data, helper=helper, progress=progress, cancel=flag)
+
+        def done(model, err):
+            self.busy = False
+            for w in (self.progress, self.progress_lbl, self.cancel_btn):
+                w.pack_forget()
+            self.msg.pack(side="right")
+            if err:
+                if not isinstance(err, InterruptedError):
+                    messagebox.showerror("Convert PDF", f"The PDF could not be converted.\n\n{err}", parent=self.root)
+                return
+            self.doc = formats.Document(kind="rich", model=model)
+            self.set_rich(model)
+            self.dirty = True
+            self.update_title()
+            self.suggest_name = name
+            self.flash_msg("Converted. Save it as Word or OpenDocument, or use Export for Markdown, LaTeX or text.", 12000)
+
+        self.lane_slow.submit(job, done)
 
     # -- models ---------------------------------------------------------------------------
     def reload_models(self, done=None):
@@ -1650,6 +2083,7 @@ class App:
         self.update_mode()
         self.panel.render()
         self.preview.retheme()
+        self.rich.retheme()
         self.settings["theme"] = name
         models.save_settings(self.settings)
 
@@ -1658,6 +2092,7 @@ class App:
         self.theme.set_editor_font(size=size)
         self._center_column()
         self.preview.retheme()
+        self.rich.retheme()
         self.settings["font_size"] = self.theme.size
         models.save_settings(self.settings)
 
@@ -1665,6 +2100,7 @@ class App:
         self.theme.set_editor_font(family=self.font_var.get())
         self._center_column()
         self.preview.retheme()
+        self.rich.retheme()
         self.settings["font_family"] = self.font_var.get()
         models.save_settings(self.settings)
 
@@ -1673,12 +2109,18 @@ class App:
         self.later("msg", ms, lambda: self.msg.configure(text=""))
 
     def undo(self):
+        if self.mode == "pdf":
+            self.pdfview.undo()
+            return
         try:
             self.text.edit_undo()
         except tk.TclError:
             pass
 
     def redo(self):
+        if self.mode == "pdf":
+            self.pdfview.redo()
+            return
         try:
             self.text.edit_redo()
         except tk.TclError:

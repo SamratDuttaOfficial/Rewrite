@@ -7,7 +7,8 @@ macOS    dist/installers/Rewrite-<ver>-macOS-<arch>.dmg
 Linux    dist/installers/rewrite_<ver>_<arch>.deb              (needs dpkg-deb)
          dist/installers/Rewrite-<ver>-<arch>.AppImage        (needs appimagetool on PATH or in $APPIMAGETOOL)
 
-The app is frozen with PyInstaller in a private build environment (build/venv). The unpacked app is only
+The document engine (native/, Rust) is built as a wheel with maturin, so Rust must be installed
+(rustup.rs). The app is frozen with PyInstaller in a private build environment (build/venv). The unpacked app is only
 an intermediate step: it is made in build/app and removed once the installers exist, so dist/ holds
 nothing but the installers.
 Installers can only be built on their own OS. .github/workflows/installers.yml builds all three.
@@ -40,7 +41,7 @@ Exec={exec} %f
 Icon=rewrite
 Terminal=false
 Categories=Office;TextTools;
-MimeType=text/plain;text/markdown;text/x-tex;
+MimeType=text/plain;text/markdown;text/x-tex;application/pdf;application/rtf;application/msword;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.oasis.opendocument.text;
 StartupWMClass=Rewrite
 """
 
@@ -86,8 +87,18 @@ def build_python():
     if not os.path.exists(py):
         venv.create(env, with_pip=True)
         run(py, "-m", "pip", "install", "-q", "--upgrade", "pip")
-    run(py, "-m", "pip", "install", "-q", "-r", os.path.join(ROOT, "requirements.txt"), "pyinstaller>=6.3")
+    run(py, "-m", "pip", "install", "-q", "-r", os.path.join(ROOT, "requirements.txt"), "pyinstaller>=6.3",
+        "maturin>=1.5")
     return py
+
+
+def build_native(py):
+    """The document engine as a wheel, installed into the build environment for PyInstaller to collect."""
+    wheels = os.path.join(BUILD, "wheels")
+    shutil.rmtree(wheels, ignore_errors=True)
+    run(py, "-m", "maturin", "build", "--release", "--manifest-path", os.path.join(ROOT, "native", "Cargo.toml"),
+        "--out", wheels)
+    run(py, "-m", "pip", "install", "-q", "--force-reinstall", "--no-deps", *glob.glob(os.path.join(wheels, "*.whl")))
 
 
 def freeze(py):
@@ -152,8 +163,9 @@ Section: editors
 Priority: optional
 Depends: libc6, libx11-6
 Description: {SUMMARY}
- Suggests context-aware alternatives for words, phrases and whole sentences
- in txt, md, tex, docx and pdf files. Runs fully offline.
+ Suggests context-aware alternatives for words, phrases and whole sentences.
+ Edits text, Markdown, LaTeX, Word, OpenDocument and RTF files, marks up and
+ changes PDF files, and converts between them. Runs fully offline.
 """)
         run("dpkg-deb", "--build", "--root-owner-group", root, os.path.join(OUT, f"rewrite_{VERSION}_{arch}.deb"))
     else:
@@ -178,7 +190,9 @@ def main():
         sys.exit("Inno Setup 6 is needed to build the Windows installer.\n"
                  "Install it with:  winget install JRSoftware.InnoSetup   (or from https://jrsoftware.org/isdl.php)")
     make_icons()
-    freeze(build_python())
+    py = build_python()
+    build_native(py)
+    freeze(py)
     os.makedirs(OUT, exist_ok=True)
     {"win32": windows, "darwin": macos}.get(sys.platform, linux)()
     shutil.rmtree(APP, ignore_errors=True)

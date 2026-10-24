@@ -21,7 +21,7 @@ datas += collect_data_files("tkinterdnd2") + collect_data_files("pypdfium2") + c
 a = Analysis([os.path.join(SPECPATH, "launcher.py")], pathex=[ROOT], datas=datas,
              binaries=collect_dynamic_libs("onnxruntime") + collect_dynamic_libs("pypdfium2_raw"),
              # onnxruntime imports numpy.core.* at run time (hidden from analysis); NumPy 2 keeps these as shims.
-             hiddenimports=collect_submodules("numpy.core") + ["tkinterdnd2", "pypdfium2"],
+             hiddenimports=collect_submodules("numpy.core") + ["tkinterdnd2", "pypdfium2", "rewrite_native"],
              excludes=["PIL", "matplotlib", "IPython", "pytest", "scipy", "pandas", "torch"])
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Rewrite", console=False, icon=ICON)

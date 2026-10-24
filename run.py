@@ -2,12 +2,15 @@
 """Start Rewrite:  python run.py  [file-to-open]
 
 The first run creates a private environment in .venv next to this file and
-installs the few small packages Rewrite needs. Later runs start immediately.
-Options:  --reinstall   rebuild the environment
+installs the few small packages Rewrite needs, then builds the document
+engine (native/, written in Rust) when Rust is installed. Later runs start
+immediately; the engine is rebuilt only when its source changes.
+Options:  --reinstall   rebuild the environment and the engine
 """
 import hashlib
 import os
 import platform
+import shutil
 import subprocess
 import sys
 
@@ -15,10 +18,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 VENV = os.path.join(HERE, ".venv")
 REQ = os.path.join(HERE, "requirements.txt")
 STAMP = os.path.join(VENV, ".rewrite-installed")
-CORE = ["numpy", "tokenizers", "lemminflect", "pypdf", "certifi"]
+NATIVE = os.path.join(HERE, "native")
+NATIVE_STAMP = os.path.join(VENV, ".rewrite-native")
+CORE = ["numpy", "tokenizers", "lemminflect", "certifi"]
 OPTIONAL = {"onnxruntime": "smart models will be unavailable",
             "tkinterdnd2": "files cannot be dropped on the window",
-            "pypdfium2": "the LaTeX preview cannot show the PDF"}
+            "pypdfium2": "PDF files and the LaTeX preview cannot be shown"}
 
 
 def say(msg):
@@ -85,12 +90,62 @@ def setup():
 
 def fallback_install():
     for pkg in CORE + list(OPTIONAL):
-        mod = {"pypdf": "pypdf"}.get(pkg, pkg)
         try:
-            __import__(mod)
+            __import__(pkg)
         except ImportError:
             pip(sys.executable, "--user", pkg)
     return sys.executable
+
+
+def cargo():
+    found = shutil.which("cargo")
+    if found:
+        return found
+    home = os.path.join(os.path.expanduser("~"), ".cargo", "bin", "cargo.exe" if os.name == "nt" else "cargo")
+    return home if os.path.exists(home) else None
+
+
+def native_hash():
+    """A fingerprint of the engine's source, so it is rebuilt only when that changes."""
+    h = hashlib.sha1(sys.version.encode())
+    for top in ("Cargo.toml", "Cargo.lock", "pyproject.toml", "src"):
+        path = os.path.join(NATIVE, top)
+        files = [path] if os.path.isfile(path) else sorted(
+            os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs if f.endswith(".rs"))
+        for f in files:
+            h.update(os.path.relpath(f, NATIVE).encode())
+            with open(f, "rb") as fh:
+                h.update(fh.read())
+    return h.hexdigest()
+
+
+def build_native(py):
+    """Build the document engine (Word, OpenDocument, RTF, PDF and the rest) into the environment."""
+    if not os.path.isdir(NATIVE):
+        return
+    want = native_hash()
+    if os.path.exists(NATIVE_STAMP):
+        with open(NATIVE_STAMP) as f:
+            if f.read().strip() == want:
+                return
+    tool = cargo()
+    if not tool:
+        say("Rust is not installed, so the document engine cannot be built: text files work, but Word, "
+            "OpenDocument, RTF and PDF files need it. Install Rust from https://rustup.rs and start again.")
+        return
+    say("Building the document engine (the first time takes a few minutes)...")
+    env = dict(os.environ, VIRTUAL_ENV=VENV, PATH=os.path.dirname(tool) + os.pathsep + os.environ.get("PATH", ""))
+    if subprocess.call([py, "-c", "import maturin"], stderr=subprocess.DEVNULL) != 0 and not pip(py, "maturin>=1.5"):
+        say("Could not install maturin, the engine's build tool.")
+        return
+    code = subprocess.call([py, "-m", "maturin", "develop", "--release", "--manifest-path",
+                            os.path.join(NATIVE, "Cargo.toml")], cwd=NATIVE, env=env)
+    if code != 0:
+        say("The document engine did not build (see above). Text files still work.")
+        return
+    with open(NATIVE_STAMP, "w") as f:
+        f.write(want)
+    say("Document engine ready.")
 
 
 def main():
@@ -103,9 +158,12 @@ def main():
         say(tk_help())
         sys.exit(1)
     args = [a for a in sys.argv[1:] if a != "--reinstall"]
-    if "--reinstall" in sys.argv and os.path.exists(STAMP):
-        os.remove(STAMP)
+    if "--reinstall" in sys.argv:
+        for stamp in (STAMP, NATIVE_STAMP):
+            if os.path.exists(stamp):
+                os.remove(stamp)
     py = setup()
+    build_native(py)
     say("Starting Rewrite...")
     env = dict(os.environ, PYTHONPATH=HERE + os.pathsep + os.environ.get("PYTHONPATH", ""))
     code = subprocess.call([py, "-m", "rewrite", *args], cwd=HERE, env=env)

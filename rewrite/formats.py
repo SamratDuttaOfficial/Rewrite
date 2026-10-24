@@ -1,14 +1,17 @@
 """Loading/saving documents and finding the parts that must not be rewritten.
 
+Text files (plain, Markdown, LaTeX, HTML, code) are edited as text. Word, OpenDocument and RTF files are
+edited with their formatting ("rich"), read and written by the Rust core (native.py). PDF files open in
+the PDF view.
+
 `protected_spans(text, kind)` returns sorted, merged (start, end) character
 ranges such as LaTeX commands and maths, Markdown code, URLs, HTML tags, or
 (for source code) everything except comments.
 """
-import io
 import os
 import re
-import zipfile
-from xml.etree import ElementTree as ET
+
+from . import native
 
 KIND_BY_EXT = {
     ".tex": "latex", ".latex": "latex", ".sty": "latex", ".cls": "latex", ".bib": "latex", ".ltx": "latex",
@@ -21,30 +24,47 @@ KIND_BY_EXT = {
     ".pl": "code", ".css": "code", ".scss": "code", ".sql": "code", ".yaml": "code", ".yml": "code",
     ".toml": "code", ".ini": "code", ".cfg": "code",
 }
-BINARY_IMPORT = {".docx", ".odt", ".pdf", ".rtf"}
-KIND_LABEL = {"plain": "Plain text", "markdown": "Markdown", "latex": "LaTeX", "html": "HTML/XML", "code": "Code (comments only)"}
+RICH = native.RICH  # edited with formatting
+SAVE_RICH = {".docx": "docx", ".docm": "docx", ".dotx": "docx", ".odt": "odt", ".ott": "odt", ".fodt": "fodt",
+             ".rtf": "rtf", ".doc": "doc", ".dot": "doc"}
+KIND_LABEL = {"plain": "Plain text", "markdown": "Markdown", "latex": "LaTeX", "html": "HTML/XML",
+              "code": "Code (comments only)", "rich": "Formatted document", "pdf": "PDF"}
+FORMAT_LABEL = {".docx": "Word", ".docm": "Word", ".dotx": "Word template", ".doc": "Word 97–2003", ".dot": "Word 97–2003",
+                ".odt": "OpenDocument", ".ott": "OpenDocument template", ".fodt": "Flat OpenDocument",
+                ".rtf": "Rich Text", ".pdf": "PDF"}
 
 OPEN_TYPES = [
-    ("All supported", "*.txt *.md *.markdown *.tex *.latex *.bib *.rst *.html *.htm *.docx *.odt *.pdf *.rtf *.csv *.json *.xml *.py *.js *.ts *.c *.cpp *.java *.go *.rs *.yaml *.yml"),
+    ("All supported", "*.txt *.md *.markdown *.tex *.latex *.bib *.rst *.html *.htm *.docx *.docm *.dotx *.doc *.dot "
+                      "*.odt *.ott *.fodt *.rtf *.pdf *.csv *.json *.xml *.py *.js *.ts *.c *.cpp *.java *.go *.rs "
+                      "*.yaml *.yml"),
+    ("Word", "*.docx *.docm *.dotx *.doc *.dot"), ("OpenDocument / LibreOffice", "*.odt *.ott *.fodt"),
+    ("Rich text", "*.rtf"), ("PDF", "*.pdf"),
     ("Text", "*.txt"), ("Markdown", "*.md *.markdown"), ("LaTeX", "*.tex *.latex *.bib"),
-    ("Word / OpenDocument", "*.docx *.odt"), ("PDF", "*.pdf"), ("Rich text", "*.rtf"),
     ("All files", "*.*"),
 ]
+SAVE_RICH_TYPES = [("Word document", "*.docx"), ("OpenDocument text", "*.odt"), ("Flat OpenDocument", "*.fodt"),
+                   ("Rich Text", "*.rtf"), ("Word 97–2003 (needs LibreOffice)", "*.doc")]
 
 
 class Document:
-    def __init__(self, text="", path=None, kind="plain", encoding="utf-8", newline="\n", source_ext=None):
+    """An open file. Text kinds keep their text in the editor; a "rich" document starts from `model` (a
+    docmodel.Document); a "pdf" one holds the file's bytes in `data`."""
+
+    def __init__(self, text="", path=None, kind="plain", encoding="utf-8", newline="\n", source_ext=None,
+                 model=None, data=None):
         self.text, self.path, self.kind = text, path, kind
         self.encoding, self.newline = encoding, newline
-        self.source_ext = source_ext  # e.g. ".docx" when imported from a binary format
+        self.source_ext = source_ext  # e.g. ".docx": the format of a formatted document or PDF
+        self.model = model
+        self.data = data
 
     @property
     def name(self):
         return os.path.basename(self.path) if self.path else "Untitled"
 
     @property
-    def savable_in_place(self):
-        return bool(self.path) and self.source_ext not in BINARY_IMPORT - {".docx"}
+    def ext(self):
+        return os.path.splitext(self.path or "")[1].lower()
 
 
 def kind_for(path):
@@ -66,14 +86,21 @@ def load(path):
     ext = os.path.splitext(path)[1].lower()
     with open(path, "rb") as f:
         raw = f.read()
-    if ext == ".docx":
-        return Document(_docx_text(raw), path, "plain", source_ext=ext)
-    if ext == ".odt":
-        return Document(_odt_text(raw), path, "plain", source_ext=ext)
+    if ext in RICH:
+        native.require()
+        try:
+            model = native.read(raw, native.READ[ext], os.path.dirname(os.path.abspath(path)))
+        except Exception as e:
+            if ext in (".doc", ".dot") and native.office_path():
+                # an old Word file the reader cannot follow: let LibreOffice turn it into .docx first
+                model = native.read(native.office_convert(raw, ext, "docx", 180, None), "docx")
+            else:
+                raise ValueError(f"The file could not be read: {e}")
+        return Document("", path, "rich", source_ext=ext, model=model)
     if ext == ".pdf":
-        return Document(_pdf_text(raw), path, "plain", source_ext=ext)
-    if ext == ".rtf":
-        return Document(_rtf_text(raw.decode("latin-1")), path, "plain", source_ext=ext)
+        if not raw.startswith(b"%PDF") and b"%PDF" not in raw[:1024]:
+            raise ValueError("This is not a PDF file.")
+        return Document("", path, "pdf", source_ext=ext, data=raw)
     text, enc = _decode(raw)
     newline = "\r\n" if "\r\n" in text[:20000] else "\n"
     text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -98,117 +125,44 @@ def _decode(raw):
     return raw.decode("latin-1"), "latin-1"
 
 
-W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-
-
-def _docx_text(raw):
-    with zipfile.ZipFile(io.BytesIO(raw)) as z:
-        root = ET.fromstring(z.read("word/document.xml"))
-    paras = []
-    for p in root.iter(W + "p"):
-        buf = []
-        for el in p.iter():
-            if el.tag == W + "t" and el.text:
-                buf.append(el.text)
-            elif el.tag == W + "tab":
-                buf.append("\t")
-            elif el.tag in (W + "br", W + "cr"):
-                buf.append("\n")
-        paras.append("".join(buf))
-    return "\n\n".join(p for p in paras if p.strip())
-
-
-def _odt_text(raw):
-    ns = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
-    with zipfile.ZipFile(io.BytesIO(raw)) as z:
-        root = ET.fromstring(z.read("content.xml"))
-    paras = []
-    for el in root.iter():
-        if el.tag in (ns + "p", ns + "h"):
-            paras.append("".join(el.itertext()))
-    return "\n\n".join(p for p in paras if p.strip())
-
-
-def _pdf_text(raw):
-    try:
-        from pypdf import PdfReader
-    except Exception:
-        raise ValueError("Reading PDF needs the 'pypdf' package (run.py installs it).")
-    reader = PdfReader(io.BytesIO(raw))
-    pages = []
-    for page in reader.pages:
-        t = page.extract_text() or ""
-        # join hyphenated line breaks and single line breaks inside paragraphs
-        t = re.sub(r"(\w)-\n(\w)", r"\1\2", t)
-        t = re.sub(r"(?<![.!?:\n])\n(?!\n)", " ", t)
-        pages.append(t.strip())
-    return "\n\n".join(p for p in pages if p)
-
-
-def _rtf_text(s):
-    s = re.sub(r"\{\\\*[^{}]*(\{[^{}]*\}[^{}]*)*\}", "", s)
-    s = re.sub(r"\{\\(fonttbl|colortbl|stylesheet|info)[\s\S]*?\}\s*\}", "", s)
-    s = re.sub(r"\\'([0-9a-fA-F]{2})", lambda m: bytes([int(m.group(1), 16)]).decode("cp1252", "replace"), s)
-    s = re.sub(r"\\u(-?\d+)\??", lambda m: chr(int(m.group(1)) % 65536), s)
-    s = re.sub(r"\\(par|line)\b ?", "\n", s)
-    s = re.sub(r"\\tab\b ?", "\t", s)
-    s = re.sub(r"\\[a-zA-Z]+-?\d* ?", "", s)
-    s = re.sub(r"\\([{}\\])", r"\1", s)
-    s = s.replace("{", "").replace("}", "")
-    return re.sub(r"\n{3,}", "\n\n", s).strip()
-
-
 # -- saving --------------------------------------------------------------------------
 
 def save(doc, text, path=None):
+    """Save a text document (in its own encoding and line endings), or its text as Word/OpenDocument/RTF."""
     path = path or doc.path
     ext = os.path.splitext(path)[1].lower()
-    if ext == ".docx":
-        _write_docx(text, path)
-    else:
-        enc = doc.encoding if doc.source_ext is None else "utf-8"
-        data = text.replace("\n", doc.newline if doc.source_ext is None else os.linesep)
-        with open(path, "w", encoding=enc, newline="") as f:
-            f.write(data)
+    if ext in SAVE_RICH:
+        model = native.read(text.encode("utf-8"), {"markdown": "md", "latex": "tex"}.get(doc.kind, "txt"))
+        save_rich(model, path)
+        return
+    enc = doc.encoding if doc.source_ext is None else "utf-8"
+    data = text.replace("\n", doc.newline if doc.source_ext is None else os.linesep)
+    with open(path, "w", encoding=enc, newline="") as f:
+        f.write(data)
     doc.path = path
-    doc.source_ext = None if ext != ".docx" else ".docx"
-    if ext != ".docx":
-        doc.kind = kind_for(path) if kind_for(path) != "plain" else doc.kind
+    doc.source_ext = None
+    doc.kind = kind_for(path) if kind_for(path) != "plain" else doc.kind
 
 
-def _esc(s):
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def _write_docx(text, path):
-    body = []
-    for para in re.split(r"\n\s*\n", text.strip("\n")):
-        lines = para.split("\n")
-        runs = '<w:r><w:br/></w:r>'.join(
-            f'<w:r><w:t xml:space="preserve">{_esc(l)}</w:t></w:r>' for l in lines)
-        body.append(f"<w:p>{runs}</w:p>")
-    document = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-        f'<w:body>{"".join(body)}<w:sectPr/></w:body></w:document>')
-    content_types = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-        '<Default Extension="xml" ContentType="application/xml"/>'
-        '<Override PartName="/word/document.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-        '</Types>')
-    rels = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
-        'Target="word/document.xml"/></Relationships>')
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("[Content_Types].xml", content_types)
-        z.writestr("_rels/.rels", rels)
-        z.writestr("word/document.xml", document)
+def save_rich(model, path):
+    """Write a docmodel Document in the format the file name asks for. Old .doc files are made by
+    LibreOffice from a .docx (Rewrite writes no .doc itself)."""
+    ext = os.path.splitext(path)[1].lower()
+    fmt = SAVE_RICH.get(ext)
+    if fmt is None:
+        raise ValueError(f"Formatted documents are saved as .docx, .odt, .fodt, .rtf or .doc, not {ext or 'no extension'}.")
+    if fmt == "doc":
+        if not native.office_path():
+            raise ValueError("Saving as .doc needs LibreOffice. Save as .docx instead (Word opens it), or install "
+                             "LibreOffice from libreoffice.org.")
+        data, _ = native.write(model, "docx")
+        data = native.office_convert(data, ".docx", "doc", 180, None)
+    else:
+        data, _ = native.write(model, fmt)
+    tmp = path + ".rewrite-tmp"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, path)
 
 
 # -- protected regions ---------------------------------------------------------------

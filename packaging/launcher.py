@@ -22,6 +22,15 @@ def selftest(log=None):
         pdf = pypdfium2.PdfDocument.new()
         pdf.new_page(200, 200)
         assert pdf[0].render(scale=0.5).width == 100, "PDFium does not render"  # PDF preview
+        from rewrite import docmodel, native  # the document engine (Rust)
+        assert native.available(), f"the document engine is missing: {native.ERROR}"
+        doc = docmodel.Document(blocks=[docmodel.Paragraph(content=[docmodel.Run(text="Engine check")], style="h1")])
+        for fmt in ("docx", "odt", "rtf", "md", "tex"):
+            data, _ = native.write(doc, fmt)
+            assert "Engine check" in native.read(data, fmt).blocks[0].text, f"{fmt} round trip"
+        made = native.render_pdf(doc)
+        assert native.font_families(), "no fonts found for PDF output"
+        assert len(native.pdf_pages(native.pdf_edit(made, [{"op": "rotate", "page": 0, "angle": 90}]))) == 1
         import tkinterdnd2  # drag and drop; its Tcl library is loaded when the window opens
         assert os.listdir(os.path.join(os.path.dirname(tkinterdnd2.__file__), "tkdnd")), "tkdnd is missing"
         msg, code = f"selftest ok (smart={e.smart}, paraphraser={bool(e.t5)})", 0

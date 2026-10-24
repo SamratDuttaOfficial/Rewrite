@@ -32,6 +32,15 @@ _LINE_START = re.compile(
 _STANDALONE = re.compile(r"\s*(#|%|\||\\(?!item\b|textbf|textit|emph)[A-Za-z])")
 
 
+def _lines(text):
+    out, pos = [], 0
+    for ln in text.split("\n"):
+        if ln.strip():
+            out.append((pos, pos + len(ln)))
+        pos += len(ln) + 1
+    return out
+
+
 def _blocks(text):
     """Split text at blank lines and around heading/command/title-like lines."""
     cuts = {0, len(text)}
@@ -56,10 +65,12 @@ def _blocks(text):
     return [(a, b) for a, b in zip(cuts, cuts[1:]) if text[a:b].strip()]
 
 
-def sentence_bounds(text):
-    """Return a list of (start, end) spans of sentences in text."""
+def sentence_bounds(text, lines=False):
+    """Return a list of (start, end) spans of sentences in text. With lines=True every line is a
+    paragraph of its own (formatted documents); otherwise blank lines and title-like lines separate
+    paragraphs, and single line breaks may fall inside a sentence."""
     out = []
-    for bs, be in _blocks(text):
+    for bs, be in (_lines(text) if lines else _blocks(text)):
         out.extend((bs + s, bs + e) for s, e in _sentences(text[bs:be]))
     return out
 

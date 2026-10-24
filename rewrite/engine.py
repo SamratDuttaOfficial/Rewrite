@@ -555,7 +555,7 @@ class Engine:
         ratio = self.STRENGTH[strength][0]
         sentences = []
         for rs, re_ in regions:
-            for s, e in sentence_bounds(text[rs:re_]):
+            for s, e in sentence_bounds(text[rs:re_], opts.get("lines", False)):
                 sentences.append((rs + s, rs + e))
         edits = []
         for k, (s, e) in enumerate(sentences):
