@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::Instant;
 
 /// Sentences the context model reads per pass, nearest to the view first.
@@ -293,19 +293,16 @@ impl App {
         let lines = self.rich_active();
         let focus = self.view_top();
         let interactive = [self.lanes.word.activity(), self.lanes.sent.activity(), self.lanes.slow.activity()];
-        let snap_ui = glib::thread_guard::ThreadGuard::new(snap.clone());
-        let snap_ui = Arc::new(Mutex::new(Some(snap_ui)));
-        let post = move |first: Vec<Issue>, slips: Vec<Issue>, more: bool, last: bool| {
-            let s = snap_ui.clone();
+        // the worker names the text by its number; the UI thread finds it (if it is still the current one)
+        let snap_id = snap.id;
+        let post = move |first: Vec<Issue>, slips: Vec<Issue>, more: bool, _last: bool| {
             workers::post(move || {
-                let guard = if last { s.lock().unwrap().take() } else { None };
-                let snap = match guard {
-                    Some(g) => Some(g.into_inner()),
-                    None => s.lock().unwrap().as_ref().map(|g| g.get_ref().clone()),
-                };
-                if let Some(snap) = snap {
-                    with_app(|app| app.proof_done(generation, &snap, first, slips, more));
-                }
+                with_app(|app| {
+                    let snap = app.st.borrow().snap.clone();
+                    if snap.id == snap_id {
+                        app.proof_done(generation, &snap, first, slips, more);
+                    }
+                });
             });
         };
         self.lanes.proof.run(move || {

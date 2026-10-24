@@ -32,12 +32,15 @@ pub const PDF_HINT: &str = "To rewrite a PDF's text, use Convert to document; th
 pub struct Snap {
     pub text: String,
     pub off: Offsets,
+    /// A number of its own, so background results can say which text they belong to.
+    pub id: u64,
 }
 
 impl Snap {
     pub fn new(text: String) -> Rc<Snap> {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let off = Offsets::new(&text);
-        Rc::new(Snap { text, off })
+        Rc::new(Snap { text, off, id: NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) })
     }
     /// The text between two character offsets.
     pub fn get(&self, s: usize, e: usize) -> &str {
