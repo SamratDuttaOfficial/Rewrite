@@ -1,9 +1,9 @@
 //! The Python face of the native core. Documents and charts cross as dicts (see model.rs); heavy work
 //! runs with the GIL released so the Tk window stays responsive.
 
-use crate::charts::{self, Shape};
-use crate::model::{Chart, Document, PageSetup};
-use crate::{convert, fonts, imaging, layout, mathtex};
+use rewrite_core::charts::{self, Shape};
+use rewrite_core::model::{Chart, Document, PageSetup};
+use rewrite_core::{convert, fonts, imaging, layout, mathtex};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyTuple};
@@ -34,15 +34,15 @@ fn render_pdf<'py>(py: Python<'py>, doc: &Bound<'py, PyAny>, generic: &str, numb
 /// A PDF with changes made: ops is a list of dicts with an "op" key (see pdfedit.rs).
 #[pyfunction]
 fn pdf_edit<'py>(py: Python<'py>, data: &[u8], ops: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyBytes>> {
-    let ops: Vec<crate::pdfedit::Op> = pythonize::depythonize(ops).map_err(|e| PyValueError::new_err(format!("bad edit: {e}")))?;
-    let out = py.detach(|| crate::pdfedit::apply(data, &ops)).map_err(PyRuntimeError::new_err)?;
+    let ops: Vec<rewrite_core::pdfedit::Op> = pythonize::depythonize(ops).map_err(|e| PyValueError::new_err(format!("bad edit: {e}")))?;
+    let out = py.detach(|| rewrite_core::pdfedit::apply(data, &ops)).map_err(PyRuntimeError::new_err)?;
     Ok(PyBytes::new(py, &out))
 }
 
 /// (left, bottom, right, top, rotation) of every page of a PDF: its visible box and its turn.
 #[pyfunction]
 fn pdf_pages(data: &[u8]) -> PyResult<Vec<(f64, f64, f64, f64, i64)>> {
-    crate::pdfedit::pages(data).map_err(PyRuntimeError::new_err)
+    rewrite_core::pdfedit::pages(data).map_err(PyRuntimeError::new_err)
 }
 
 /// A document dict in the form the rich-text editor holds it (see flat.rs): {"text", "lines", "spans",
@@ -50,22 +50,22 @@ fn pdf_pages(data: &[u8]) -> PyResult<Vec<(f64, f64, f64, f64, i64)>> {
 #[pyfunction]
 fn rich_flatten<'py>(py: Python<'py>, doc: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let doc = doc_from(doc)?;
-    pythonize::pythonize(py, &crate::flat::flatten(&doc)).map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    pythonize::pythonize(py, &rewrite_core::flat::flatten(&doc)).map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
 /// The document dict for an editor's content; `meta` (a document dict) gives the title, page set-up and
 /// the rest that the editor does not hold.
 #[pyfunction]
 fn rich_build<'py>(py: Python<'py>, flat: &Bound<'py, PyAny>, meta: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let f: crate::flat::Flat = pythonize::depythonize(flat).map_err(|e| PyValueError::new_err(format!("bad editor content: {e}")))?;
+    let f: rewrite_core::flat::Flat = pythonize::depythonize(flat).map_err(|e| PyValueError::new_err(format!("bad editor content: {e}")))?;
     let meta = doc_from(meta)?;
-    pythonize::pythonize(py, &crate::flat::build(&f, meta)).map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    pythonize::pythonize(py, &rewrite_core::flat::build(&f, meta)).map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
 /// List markers for lines given as [(kind, level) or None].
 #[pyfunction]
 fn rich_labels(lists: Vec<Option<(String, u32)>>) -> Vec<Option<String>> {
-    crate::flat::labels(&lists)
+    rewrite_core::flat::labels(&lists)
 }
 
 /// The shapes of a chart in a w x h point box, measuring text with measure(text, size, bold) -> width.
@@ -200,7 +200,7 @@ struct PyHelper<'py> {
     obj: Option<Bound<'py, PyAny>>,
 }
 
-impl crate::textclean::Helper for PyHelper<'_> {
+impl rewrite_core::textclean::Helper for PyHelper<'_> {
     fn known(&self, word: &str) -> bool {
         self.obj.as_ref().and_then(|o| o.call_method1("known", (word,)).ok()).and_then(|v| v.extract().ok()).unwrap_or(false)
     }
@@ -224,8 +224,8 @@ impl crate::textclean::Helper for PyHelper<'_> {
 #[pyo3(signature = (pages, options=None, helper=None, render=None))]
 fn pdf_document<'py>(py: Python<'py>, pages: &Bound<'py, PyAny>, options: Option<&Bound<'py, PyAny>>, helper: Option<Bound<'py, PyAny>>,
                      render: Option<Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyAny>> {
-    let pages: Vec<crate::pdfextract::PPage> = pythonize::depythonize(pages).map_err(|e| PyValueError::new_err(format!("bad pages: {e}")))?;
-    let opts: crate::pdfextract::Options = match options {
+    let pages: Vec<rewrite_core::pdfextract::PPage> = pythonize::depythonize(pages).map_err(|e| PyValueError::new_err(format!("bad pages: {e}")))?;
+    let opts: rewrite_core::pdfextract::Options = match options {
         Some(o) if !o.is_none() => pythonize::depythonize(o).map_err(|e| PyValueError::new_err(e.to_string()))?,
         _ => Default::default(),
     };
@@ -238,7 +238,7 @@ fn pdf_document<'py>(py: Python<'py>, pages: &Bound<'py, PyAny>, options: Option
         }
         v.extract::<Vec<u8>>().ok()
     };
-    let doc = crate::pdfextract::convert(&pages, &opts, &h, &draw);
+    let doc = rewrite_core::pdfextract::convert(&pages, &opts, &h, &draw);
     pythonize::pythonize(py, &doc).map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
@@ -247,7 +247,7 @@ fn pdf_document<'py>(py: Python<'py>, pages: &Bound<'py, PyAny>, options: Option
 #[pyo3(signature = (text, helper=None))]
 fn sentence_starts(text: &str, helper: Option<Bound<'_, PyAny>>) -> Vec<usize> {
     let h = PyHelper { obj: helper.filter(|h| !h.is_none()) };
-    let bytes = crate::textclean::sentence_starts(text, &h);
+    let bytes = rewrite_core::textclean::sentence_starts(text, &h);
     let mut out = vec![];
     let mut chars = 0;
     let mut bi = 0;
@@ -264,7 +264,7 @@ fn sentence_starts(text: &str, helper: Option<Bound<'_, PyAny>>) -> Vec<usize> {
 /// Full path of LibreOffice, or None.
 #[pyfunction]
 fn office_path() -> Option<String> {
-    crate::office::find().map(|p| p.to_string_lossy().into_owned())
+    rewrite_core::office::find().map(|p| p.to_string_lossy().into_owned())
 }
 
 /// Convert file bytes with LibreOffice: (data, ".doc", "docx"). cancelled() -> bool is asked now and then.
@@ -280,7 +280,7 @@ fn office_convert<'py>(py: Python<'py>, data: &[u8], src_ext: &str, target: &str
                 None => false,
             }
         };
-        crate::office::convert(&data, src_ext, target, timeout, &check)
+        rewrite_core::office::convert(&data, src_ext, target, timeout, &check)
     }).map_err(PyRuntimeError::new_err)?;
     Ok(PyBytes::new(py, &out))
 }
@@ -335,7 +335,7 @@ fn write<'py>(py: Python<'py>, fmt: &str, doc: &Bound<'py, PyAny>, stem: &str, s
     Ok((PyBytes::new(py, &result.0), files))
 }
 
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(render_pdf, m)?)?;
     m.add_function(wrap_pyfunction!(rich_flatten, m)?)?;
     m.add_function(wrap_pyfunction!(pdf_edit, m)?)?;
@@ -367,4 +367,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(office_convert, m)?)?;
     m.add_function(wrap_pyfunction!(write, m)?)?;
     Ok(())
+}
+
+#[pymodule]
+fn rewrite_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    register(m)
 }

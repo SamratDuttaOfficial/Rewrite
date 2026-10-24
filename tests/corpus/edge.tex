@@ -1,0 +1,49 @@
+% !TEX program = xelatex
+\documentclass[11pt]{article}
+\usepackage{fontspec}
+\usepackage{amsmath,graphicx}
+\usepackage[backend=biber]{biblatex}
+\newcommand{\R}{\mathbb{R}}
+
+\title{Edge cases for protection}
+\author{A. Writer}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}\label{sec:intro}
+This paragraph cites \cite{knuth84,lamport94} and refers to Section~\ref{sec:intro} and Eq.~\eqref{eq:one}.
+Inline maths $a^2 + b^2 = c^2$ and \(x \in \R\) must stay as they are. A percent sign \% is not a comment, % but this is
+and so is the rest of this line.
+
+\begin{equation}\label{eq:one}
+  E = mc^2
+\end{equation}
+
+\[ \sum_{i=1}^{n} i = \frac{n(n+1)}{2} \]
+
+We use \textbf{bold words} and \emph{emphasised words} inside prose, plus \texttt{code\_name} and \verb|raw|text|.
+A footnote\footnote{Footnotes are prose too.} and a URL \url{https://example.com/a_b}.
+
+\begin{verbatim}
+verbatim text is never changed
+\end{verbatim}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.8\linewidth]{figures/plot.pdf}
+  \caption{A caption with words that can be rewritten.}
+  \label{fig:plot}
+\end{figure}
+
+\begin{tabular}{l|r}
+  Name & Value \\ \hline
+  alpha & 1 \\
+\end{tabular}
+
+$$ \int_0^\infty e^{-x}\,dx = 1 $$
+
+Special characters: ~ & ^ _ { } and a nested \textbf{\emph{\textsc{group}}}.
+
+\printbibliography
+\end{document}

@@ -1,7 +1,7 @@
 """A formatted document, the hub that every import and export goes through.
 
 The readers and writers (Word, OpenDocument, RTF, Markdown, LaTeX, PDF ...) live in the Rust core
-(native/src); this module is the Python side of the same structure, used by the editor. The two meet
+(crates/core/src); this module is the Python side of the same structure, used by the editor. The two meet
 as plain dicts: `to_native` and `from_native` convert. A document is a list of blocks:
 
     Paragraph   inline content with a style (normal, title, h1 ... h6, quote, caption), alignment and

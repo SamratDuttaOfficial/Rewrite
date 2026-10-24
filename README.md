@@ -67,7 +67,7 @@ saving as .doc, and PDF exports typeset by LibreOffice, need LibreOffice.
 python run.py
 ```
 
-Needs Python 3.9+ with Tkinter, and [Rust](https://rustup.rs) for the document engine in `native/` (it reads and
+Needs Python 3.9+ with Tkinter, and [Rust](https://rustup.rs) for the document engine in `crates/` (it reads and
 writes the file formats, lays out PDFs and edits them). The first run creates a private `.venv`, installs the
 dependencies and builds the engine; later runs rebuild it only when its source changes. Without Rust, text files
 still work.

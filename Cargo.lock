@@ -864,7 +864,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
-name = "rewrite-native"
+name = "rewrite-core"
 version = "0.1.0"
 dependencies = [
  "base64",
@@ -875,9 +875,8 @@ dependencies = [
  "lopdf",
  "pdf-writer",
  "pulldown-cmark",
- "pyo3",
- "pythonize",
  "regex",
+ "rewrite-testkit",
  "roxmltree 0.21.2",
  "serde",
  "serde_bytes",
@@ -886,6 +885,25 @@ dependencies = [
  "ttf-parser",
  "unicode-normalization",
  "zip",
+]
+
+[[package]]
+name = "rewrite-native"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "pyo3",
+ "pythonize",
+ "rewrite-core",
+]
+
+[[package]]
+name = "rewrite-testkit"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,0 +1,11 @@
+[package]
+name = "rewrite-testkit"
+description = "Parity fixtures recorded from the Python modules, and helpers to test the Rust ports against them"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64 = "0.23.1"
+serde = "1.0.229"
+serde_json = "1.0.154"

@@ -1,5 +1,5 @@
 //! Rewrite's native core: document formats, PDF writing and layout, charts, maths and pictures.
-//! Python reaches it through the `rewrite_native` module; documents travel as plain dicts.
+//! The Tk app reaches it through the `rewrite_native` Python module (crates/py).
 
 pub mod charts;
 pub mod convert;
@@ -24,12 +24,3 @@ pub mod tex;
 pub mod textclean;
 pub mod xml;
 
-mod py;
-
-use pyo3::prelude::*;
-
-#[pymodule]
-fn rewrite_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
-    py::register(m)
-}

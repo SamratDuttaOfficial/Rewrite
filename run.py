@@ -3,7 +3,7 @@
 
 The first run creates a private environment in .venv next to this file and
 installs the few small packages Rewrite needs, then builds the document
-engine (native/, written in Rust) when Rust is installed. Later runs start
+engine (crates/, written in Rust) when Rust is installed. Later runs start
 immediately; the engine is rebuilt only when its source changes.
 Options:  --reinstall   rebuild the environment and the engine
 """
@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 VENV = os.path.join(HERE, ".venv")
 REQ = os.path.join(HERE, "requirements.txt")
 STAMP = os.path.join(VENV, ".rewrite-installed")
-NATIVE = os.path.join(HERE, "native")
+NATIVE = os.path.join(HERE, "crates", "py", "Cargo.toml")
 NATIVE_STAMP = os.path.join(VENV, ".rewrite-native")
 CORE = ["numpy", "tokenizers", "lemminflect", "certifi"]
 OPTIONAL = {"onnxruntime": "smart models will be unavailable",
@@ -108,12 +108,13 @@ def cargo():
 def native_hash():
     """A fingerprint of the engine's source, so it is rebuilt only when that changes."""
     h = hashlib.sha1(sys.version.encode())
-    for top in ("Cargo.toml", "Cargo.lock", "pyproject.toml", "src"):
-        path = os.path.join(NATIVE, top)
+    for top in ("Cargo.toml", "Cargo.lock", "crates"):
+        path = os.path.join(HERE, top)
         files = [path] if os.path.isfile(path) else sorted(
-            os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs if f.endswith(".rs"))
+            os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs
+            if f.endswith((".rs", ".toml")) and "target" not in os.path.relpath(d, HERE).split(os.sep))
         for f in files:
-            h.update(os.path.relpath(f, NATIVE).encode())
+            h.update(os.path.relpath(f, HERE).replace(os.sep, "/").encode())
             with open(f, "rb") as fh:
                 h.update(fh.read())
     return h.hexdigest()
@@ -121,7 +122,7 @@ def native_hash():
 
 def build_native(py):
     """Build the document engine (Word, OpenDocument, RTF, PDF and the rest) into the environment."""
-    if not os.path.isdir(NATIVE):
+    if not os.path.isfile(NATIVE):
         return
     want = native_hash()
     if os.path.exists(NATIVE_STAMP):
@@ -138,8 +139,8 @@ def build_native(py):
     if subprocess.call([py, "-c", "import maturin"], stderr=subprocess.DEVNULL) != 0 and not pip(py, "maturin>=1.5"):
         say("Could not install maturin, the engine's build tool.")
         return
-    code = subprocess.call([py, "-m", "maturin", "develop", "--release", "--manifest-path",
-                            os.path.join(NATIVE, "Cargo.toml")], cwd=NATIVE, env=env)
+    code = subprocess.call([py, "-m", "maturin", "develop", "--release", "--manifest-path", NATIVE],
+                           cwd=HERE, env=env)
     if code != 0:
         say("The document engine did not build (see above). Text files still work.")
         return

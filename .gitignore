@@ -8,7 +8,7 @@ __pycache__/
 # Build output
 build/
 dist/
-native/target/
+/target/
 *.rewrite-tmp
 
 # App data when running from source
@@ -24,6 +24,7 @@ settings.json
 *.fdb_latexmk
 *.synctex.gz
 *.log
+!tests/corpus/logs/*.log
 
 # Editors, OS files, local notes and secrets
 .vscode/

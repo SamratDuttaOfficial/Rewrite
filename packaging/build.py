@@ -7,7 +7,7 @@ macOS    dist/installers/Rewrite-<ver>-macOS-<arch>.dmg
 Linux    dist/installers/rewrite_<ver>_<arch>.deb              (needs dpkg-deb)
          dist/installers/Rewrite-<ver>-<arch>.AppImage        (needs appimagetool on PATH or in $APPIMAGETOOL)
 
-The document engine (native/, Rust) is built as a wheel with maturin, so Rust must be installed
+The document engine (crates/, Rust) is built as a wheel with maturin, so Rust must be installed
 (rustup.rs). The app is frozen with PyInstaller in a private build environment (build/venv). The unpacked app is only
 an intermediate step: it is made in build/app and removed once the installers exist, so dist/ holds
 nothing but the installers.
@@ -96,7 +96,7 @@ def build_native(py):
     """The document engine as a wheel, installed into the build environment for PyInstaller to collect."""
     wheels = os.path.join(BUILD, "wheels")
     shutil.rmtree(wheels, ignore_errors=True)
-    run(py, "-m", "maturin", "build", "--release", "--manifest-path", os.path.join(ROOT, "native", "Cargo.toml"),
+    run(py, "-m", "maturin", "build", "--release", "--manifest-path", os.path.join(ROOT, "crates", "py", "Cargo.toml"),
         "--out", wheels)
     run(py, "-m", "pip", "install", "-q", "--force-reinstall", "--no-deps", *glob.glob(os.path.join(wheels, "*.whl")))
 

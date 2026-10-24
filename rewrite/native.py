@@ -1,4 +1,4 @@
-"""The Rust core (the rewrite_native extension, built from native/), seen from Python.
+"""The Rust core (the rewrite_native extension, built from crates/py), seen from Python.
 
 Documents go in and out as docmodel objects; everything else is passed through. Formats are read
 and written in Rust; PDF pages are read here with PDFium (pdfdoc.py) and analysed in Rust.

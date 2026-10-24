@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: dtolnay/rust-toolchain@stable  # the document engine (native/) is written in Rust
+      - uses: dtolnay/rust-toolchain@stable  # the document engine (crates/) is written in Rust
       - name: Inno Setup
         if: runner.os == 'Windows'
         run: choco install innosetup -y --no-progress
