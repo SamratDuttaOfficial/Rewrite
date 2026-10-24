@@ -55,10 +55,37 @@ fn filter(target: &str) -> &str {
     }
 }
 
-fn kill(child: &mut std::process::Child) {
+/// Starts a helper program quietly: no console window on Windows, and in a process group of its own, so
+/// [`kill_tree`] also reaches the programs it starts.
+pub(crate) fn spawn_quiet(cmd: &mut Command) -> std::io::Result<std::process::Child> {
     #[cfg(windows)]
     {
-        let _ = Command::new("taskkill").args(["/F", "/T", "/PID", &child.id().to_string()]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000 | 0x0000_0200); // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    cmd.spawn()
+}
+
+/// Ends a program started by [`spawn_quiet`] together with everything it started.
+pub(crate) fn kill_tree(child: &mut std::process::Child) {
+    let pid = child.id().to_string();
+    let mut killer = if cfg!(windows) {
+        let mut c = Command::new("taskkill");
+        c.args(["/F", "/T", "/PID", &pid]);
+        c
+    } else {
+        let mut c = Command::new("kill");
+        c.args(["-KILL", &format!("-{pid}")]);
+        c
+    };
+    killer.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    if let Ok(mut k) = spawn_quiet(&mut killer) {
+        let _ = k.wait();
     }
     let _ = child.kill();
     let _ = child.wait();
@@ -85,23 +112,18 @@ pub fn convert(data: &[u8], src_ext: &str, target: &str, timeout: u64, cancelled
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x0800_0000); // no console window
-        }
-        let mut child = cmd.spawn().map_err(|e| format!("LibreOffice could not start: {e}"))?;
+        let mut child = spawn_quiet(&mut cmd).map_err(|e| format!("LibreOffice could not start: {e}"))?;
         let start = Instant::now();
         loop {
             if let Ok(Some(_)) = child.try_wait() {
                 break;
             }
             if cancelled() {
-                kill(&mut child);
+                kill_tree(&mut child);
                 return Err("cancelled".to_string());
             }
             if start.elapsed() > Duration::from_secs(timeout) {
-                kill(&mut child);
+                kill_tree(&mut child);
                 return Err(format!("LibreOffice did not finish within {timeout} seconds."));
             }
             std::thread::sleep(Duration::from_millis(50));

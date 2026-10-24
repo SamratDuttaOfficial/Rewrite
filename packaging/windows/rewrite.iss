@@ -1,5 +1,5 @@
-; Inno Setup script for Rewrite. Normally compiled by packaging/build.py,
-; which passes /DVersion, /DSrc, /DOutDir and /DIcon.
+; Inno Setup script for Rewrite. Normally compiled by  cargo xtask package,
+; which passes /DVersion, /DSrc, /DOutDir and /DIcon. The program is in bin\, next to GTK's DLLs.
 #ifndef Version
   #define Version "1.2.1"
 #endif
@@ -33,7 +33,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutDir}
 OutputBaseFilename=Rewrite-{#Version}-Windows-Setup
 SetupIconFile={#Icon}
-UninstallDisplayIcon={app}\Rewrite.exe
+UninstallDisplayIcon={app}\bin\Rewrite.exe
 UninstallDisplayName=Rewrite
 Compression=lzma2/max
 SolidCompression=yes
@@ -46,14 +46,19 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "{#Src}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+; what the earlier (Python) versions installed
+Type: filesandordirs; Name: "{app}\_internal"
+Type: files; Name: "{app}\Rewrite.exe"
+
 [Icons]
-Name: "{autoprograms}\Rewrite"; Filename: "{app}\Rewrite.exe"
-Name: "{autodesktop}\Rewrite"; Filename: "{app}\Rewrite.exe"; Tasks: desktopicon
+Name: "{autoprograms}\Rewrite"; Filename: "{app}\bin\Rewrite.exe"
+Name: "{autodesktop}\Rewrite"; Filename: "{app}\bin\Rewrite.exe"; Tasks: desktopicon
 
 [Registry]
 ; Adds Rewrite to "Open with" for text files.
 Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "Rewrite"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\shell\open\command"; ValueType: string; ValueData: """{app}\Rewrite.exe"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\shell\open\command"; ValueType: string; ValueData: """{app}\bin\Rewrite.exe"" ""%1"""
 Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".txt"; ValueData: ""
 Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".md"; ValueData: ""
 Root: HKA; Subkey: "Software\Classes\Applications\Rewrite.exe\SupportedTypes"; ValueType: string; ValueName: ".tex"; ValueData: ""
@@ -72,4 +77,4 @@ Root: HKA; Subkey: "Software\Classes\.rtf\OpenWithList\Rewrite.exe"; Flags: unin
 Root: HKA; Subkey: "Software\Classes\.pdf\OpenWithList\Rewrite.exe"; Flags: uninsdeletekey
 
 [Run]
-Filename: "{app}\Rewrite.exe"; Description: "{cm:LaunchProgram,Rewrite}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\bin\Rewrite.exe"; Description: "{cm:LaunchProgram,Rewrite}"; Flags: nowait postinstall skipifsilent

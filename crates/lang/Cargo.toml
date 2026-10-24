@@ -1,0 +1,19 @@
+[package]
+name = "rewrite-lang"
+description = "Text utilities, diff, phrase book, thesaurus, inflection, spelling and grammar rules for Rewrite"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+fancy-regex = "0.20.0"
+flate2 = "1.1.10"
+regex = "1.13.1"
+
+[build-dependencies]
+flate2 = "1.1.10"
+serde_json = "1.0.154"
+
+[dev-dependencies]
+rewrite-testkit = { path = "../testkit" }
+serde_json = "1.0.154"

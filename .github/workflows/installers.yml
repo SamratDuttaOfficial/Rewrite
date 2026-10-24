@@ -14,26 +14,53 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-22.04]
+        os: [windows-latest, macos-latest, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: dtolnay/rust-toolchain@stable  # the document engine (crates/) is written in Rust
-      - name: Inno Setup
+
+      - name: GTK and the GNU toolchain (Windows)
         if: runner.os == 'Windows'
-        run: choco install innosetup -y --no-progress
-      - name: Linux packaging tools
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-binutils
+      - name: Rust and Inno Setup (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal
+          rustup default stable-x86_64-pc-windows-gnu
+          choco install innosetup -y --no-progress
+          UCRT="${{ steps.msys2.outputs.msys2-location }}/ucrt64"
+          echo "MSYS2_UCRT64=$UCRT" >> "$GITHUB_ENV"
+          echo "$(cygpath -w "$UCRT/bin")" >> "$GITHUB_PATH"
+
+      - name: GTK (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gtk4 pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+        if: runner.os != 'Windows'
+
+      - name: GTK and AppImage tools (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update && sudo apt-get install -y python3-tk libfuse2
-          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool
-          echo "APPIMAGETOOL=$PWD/appimagetool" >> "$GITHUB_ENV"
+          sudo apt-get update && sudo apt-get install -y libgtk-4-dev libfuse2 file
+          mkdir -p "$HOME/tools"
+          curl -fsSL -o "$HOME/tools/linuxdeploy" https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -fsSL -o "$HOME/tools/linuxdeploy-plugin-gtk.sh" https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          chmod +x "$HOME/tools/"*
+          echo "$HOME/tools" >> "$GITHUB_PATH"
+          echo "LINUXDEPLOY=$HOME/tools/linuxdeploy" >> "$GITHUB_ENV"
           echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
-      - run: python packaging/build.py
+
+      - run: cargo xtask package
       - uses: actions/upload-artifact@v4
         with:
           name: rewrite-${{ runner.os }}

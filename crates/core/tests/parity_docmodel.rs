@@ -87,7 +87,6 @@ fn document_text() {
 }
 
 #[test]
-#[ignore = "phase 1: PageSetup::name lacks the landscape and inch forms"]
 fn page_name() {
     fixture().check("page_name", |c| {
         json(model::PageSetup { width: c.arg(0), height: c.arg(1), ..Default::default() }.name())
@@ -95,10 +94,25 @@ fn page_name() {
 }
 
 #[test]
-#[ignore = "phase 1: Image::fit, STYLES and STYLE_LABEL are not ported yet"]
-fn not_ported_yet() {
-    let f = fixture();
-    for function in ["image_fit", "styles", "style_label"] {
-        f.check(function, |_| Value::Null);
-    }
+fn image_fit() {
+    // Python's Image.fit returns the fitted size and leaves the picture as it is; the recorded result is the
+    // picture's size after the call, so it is the unchanged size.
+    fixture().check("image_fit", |c| {
+        let im = model::Image { width: c.arg(0), height: c.arg(1), ..Default::default() };
+        let _ = im.fit(c.arg(2), c.arg(3));
+        json([im.width, im.height])
+    });
+    let im = model::Image { width: 800.0, height: 600.0, ..Default::default() };
+    assert_eq!(im.fit(400.0, None), (400.0, 300.0));
+    assert_eq!(im.fit(400.0, Some(150.0)), (200.0, 150.0));
+    assert_eq!(im.fit(1000.0, None), (800.0, 600.0));
+    assert_eq!(model::Image::default().fit(10.0, Some(10.0)), (1.0, 1.0));
+}
+
+#[test]
+fn styles() {
+    fixture().check("styles", |_| json(model::STYLES));
+    fixture().check("style_label", |_| {
+        Value::Object(model::STYLE_LABEL.iter().map(|(s, l)| (s.to_string(), json(l))).collect())
+    });
 }

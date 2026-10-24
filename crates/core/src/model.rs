@@ -50,6 +50,16 @@ pub struct Image {
     pub name: String,
 }
 
+impl Image {
+    /// Width and height scaled down (never up) to fit `max_w` x `max_h` points.
+    pub fn fit(&self, max_w: f64, max_h: Option<f64>) -> (f64, f64) {
+        let w = if self.width == 0.0 { 1.0 } else { self.width };
+        let h = if self.height == 0.0 { 1.0 } else { self.height };
+        let k = 1f64.min(max_w / w).min(max_h.filter(|&m| m != 0.0).map_or(1.0, |m| m / h));
+        (w * k, h * k)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
 pub struct Chart {
@@ -212,6 +222,21 @@ pub enum Block {
     PageBreak(PageBreak),
 }
 
+/// The paragraph styles, in menu order.
+pub const STYLES: [&str; 11] = ["normal", "title", "subtitle", "h1", "h2", "h3", "h4", "h5", "h6", "quote", "caption"];
+
+/// Names shown for the paragraph styles (and for code and maths blocks).
+pub const STYLE_LABEL: [(&str, &str); 13] = [
+    ("normal", "Normal text"), ("title", "Title"), ("subtitle", "Subtitle"), ("h1", "Heading 1"), ("h2", "Heading 2"),
+    ("h3", "Heading 3"), ("h4", "Heading 4"), ("h5", "Heading 5"), ("h6", "Heading 6"), ("quote", "Quote"),
+    ("caption", "Caption"), ("code", "Code"), ("math", "Maths"),
+];
+
+/// The label of a style, or the style name itself when it has none.
+pub fn style_label(style: &str) -> &str {
+    STYLE_LABEL.iter().find(|(s, _)| *s == style).map_or(style, |(_, l)| l)
+}
+
 pub const A4: (f64, f64) = (595.28, 841.89);
 pub const PAGE_SIZES: [(&str, f64, f64); 4] =
     [("A4", 595.28, 841.89), ("Letter", 612.0, 792.0), ("Legal", 612.0, 1008.0), ("A5", 419.53, 595.28)];
@@ -238,13 +263,17 @@ impl PageSetup {
     pub fn text_height(&self) -> f64 {
         self.height - self.margins.0 - self.margins.2
     }
+    /// "A4", "A4 landscape", or the size in inches ("8.3 x 11.1 in") when it is no named size.
     pub fn name(&self) -> String {
         for (n, w, h) in PAGE_SIZES {
             if (w - self.width).abs() < 2.0 && (h - self.height).abs() < 2.0 {
                 return n.to_string();
             }
+            if (h - self.width).abs() < 2.0 && (w - self.height).abs() < 2.0 {
+                return format!("{n} landscape");
+            }
         }
-        String::new()
+        format!("{:.1} x {:.1} in", self.width / 72.0, self.height / 72.0)
     }
 }
 

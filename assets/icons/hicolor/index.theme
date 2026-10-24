@@ -1,0 +1,15 @@
+[Icon Theme]
+Name=hicolor
+Directories=32x32/apps,64x64/apps,256x256/apps
+
+[32x32/apps]
+Size=32
+Type=Fixed
+
+[64x64/apps]
+Size=64
+Type=Fixed
+
+[256x256/apps]
+Size=256
+Type=Fixed

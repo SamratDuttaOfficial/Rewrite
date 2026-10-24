@@ -551,10 +551,96 @@ def g_engine_smart():
     return g
 
 
+class _WordHelper:
+    """A stand-in for cleanup.Helper with a fixed dictionary (no language engine), so the PDF conversion's
+    word fixing can be recorded and reproduced in Rust."""
+
+    def __init__(self, words):
+        self.words = set(words)
+
+    def known(self, word):
+        return word.lower() in self.words
+
+    def zipf(self, word):
+        return 4.0 if self.known(word) else 0.0
+
+    def choose(self, before, options, after):
+        return -1
+
+
+def g_pdfdoc():
+    import hashlib
+    import re
+    import struct
+    import types
+    import pypdfium2 as pdfium
+    from rewrite import docmodel as dm, native, pdfdoc
+    from rewrite.ui import pdfmode
+    folder = os.path.join(CORPUS, "pdf")
+    g = Group("pdfdoc")
+
+    def r3(x):
+        """Floats rounded to 3 decimals; PNG bytes as {"png": [width, height], "sha1": ...}; other bytes hashed."""
+        if isinstance(x, float):
+            return round(x, 3)
+        if isinstance(x, (bytes, bytearray)):
+            x = bytes(x)
+            out = {"sha1": hashlib.sha1(x).hexdigest(), "len": len(x)}
+            if x[:8] == b"\x89PNG\r\n\x1a\n":
+                out["png"] = list(struct.unpack(">II", x[16:24]))
+            return out
+        if isinstance(x, dict):
+            return {k: r3(v) for k, v in x.items()}
+        if isinstance(x, (list, tuple)):
+            return [r3(v) for v in x]
+        return x
+
+    names = sorted(n for n in os.listdir(folder) if n.endswith(".pdf"))
+    for name in names:
+        with open(os.path.join(folder, name), "rb") as f:
+            data = f.read()
+        doc = pdfium.PdfDocument(data)
+        try:
+            n = len(doc)
+            g.add("page_sizes", [name], lambda: r3([doc.get_page_size(i) for i in range(n)]))
+            g.add("read_pages", [name, True], lambda: r3(pdfdoc.read_pages(doc, True)))
+            g.add("read_pages", [name, False], lambda: r3(pdfdoc.read_pages(doc, False)))
+            render = pdfdoc._renderer(doc)
+            for box in ((0, 0, 1000, 1000), (72.5, 100.25, 300.75, 260.5), (520, 800, 620, 850), (10, 10, 11, 50)):
+                g.add("renderer", [name, 0, *box], lambda b=box: r3(render(0, *b)))
+            pages = native.pdf_pages(data)
+            for p in range(n):
+                left, _, _, top = pages[p][:4]
+                fake = types.SimpleNamespace(_chars={}, _edoc=None, _edoc_version=None, version=1, data=data,
+                                             pages=pages)
+                if p == 0:
+                    g.add("chars", [name, p, left, top], lambda p=p, s=fake: r3(pdfmode.PdfEditor.chars(s, p)))
+                page = doc[p]
+                tp = page.get_textpage()
+                pw, ph = page.get_size()
+                for rect in ((0, 0, pw, ph), (60, ph - 200, pw - 60, ph - 60), (100, 100, 101, 101)):
+                    g.add("text_bounded", [name, p, *rect], lambda t=tp, rc=rect: t.get_text_bounded(*rc))
+                tp.close()
+                page.close()
+        finally:
+            doc.close()
+        g.add("first_page_png", [name, 2.0], lambda: r3(pdfdoc.first_page_png(data, 2.0)))
+        g.add("first_page_png", [name, 0.75], lambda: r3(pdfdoc.first_page_png(data, 0.75)))
+        text = "".join(c[0] for pg in pdfium.PdfDocument(data) for c in pdfdoc._chars(pg.get_textpage(), 0))
+        words = sorted({w.lower() for w in re.findall(r"[A-Za-z]+", text)})
+        for opts, helper in (({}, None), ({}, words), ({"images": False, "tables": False}, None),
+                             ({"drop_headers": False, "fix_words": False}, None)):
+            h = _WordHelper(helper) if helper is not None else None
+            g.add("to_document", [name, opts, helper],
+                  lambda o=opts, hh=h: r3(dm.to_native(pdfdoc.to_document(data, o, hh))))
+    g.add("first_page_png", ["not a pdf", 2.0], lambda: pdfdoc.first_page_png(b"not a pdf", 2.0))
+    return g
+
+
 GROUPS = {"textutil": g_textutil, "diff": g_diff, "phrases": g_phrases, "formats": g_formats,
           "docmodel": g_docmodel, "mdrender": g_mdrender, "latexbuild": g_latexbuild,
           "lemminflect": g_lemminflect, "thesaurus": g_thesaurus, "speller": g_speller, "grammar": g_grammar,
-          "engine_lite": g_engine_lite, "engine_smart": g_engine_smart}
+          "engine_lite": g_engine_lite, "engine_smart": g_engine_smart, "pdfdoc": g_pdfdoc}
 
 
 def main():

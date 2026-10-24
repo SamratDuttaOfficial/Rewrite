@@ -1,0 +1,21 @@
+[package]
+name = "rewrite-nlp"
+description = "Model downloads, ONNX Runtime models and the suggestion engine for Rewrite"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+fancy-regex = "0.20.0"
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic", "api-30"] }
+rand = "0.10.3"
+regex = "1.13.1"
+rewrite-core = { path = "../core" }
+rewrite-lang = { path = "../lang" }
+sha2 = "0.11.1"
+tokenizers = { version = "0.23.2", default-features = false, features = ["fancy-regex"] }
+ureq = { version = "3.5.0", default-features = false, features = ["rustls"] }
+
+[dev-dependencies]
+rewrite-testkit = { path = "../testkit" }
+serde_json = "1.0.154"

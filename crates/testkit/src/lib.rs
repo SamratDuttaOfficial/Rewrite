@@ -170,6 +170,43 @@ pub fn first_difference(want: &Value, got: &Value, tolerance: f64, path: String)
     }
 }
 
+/// Lines `got` up with `want` where only the order of tied items may differ (Python broke some ties in set
+/// order, Rust in a fixed one). Both lists are split into runs of consecutive items with the same `key` (a
+/// score, a sense); where a run of `got` holds the same items as the matching run of `want`, in any order, it
+/// takes `want`'s order. With `truncated` (the list was cut at a limit, so the last run may hold different
+/// tied items), a last run of the same key and length is taken as is. Everything else is left alone, so a
+/// real difference still shows when the result is compared.
+pub fn align_ties(want: &Value, got: Value, key: impl Fn(&Value) -> Value, truncated: bool) -> Value {
+    let (Some(w), Value::Array(mut g)) = (want.as_array(), got.clone()) else { return got };
+    let runs = |xs: &[Value]| {
+        let mut out: Vec<(usize, usize)> = Vec::new();
+        for i in 0..xs.len() {
+            match out.last_mut() {
+                Some(r) if key(&xs[r.0]) == key(&xs[i]) => r.1 = i + 1,
+                _ => out.push((i, i + 1)),
+            }
+        }
+        out
+    };
+    let (rw, rg) = (runs(w), runs(&g));
+    for (n, (&(ws, we), &(gs, ge))) in rw.iter().zip(&rg).enumerate() {
+        if ws != gs || we != ge || key(&w[ws]) != key(&g[gs]) {
+            break;
+        }
+        let last = n + 1 == rw.len() && n + 1 == rg.len();
+        // the same items in any order (numbers to within 1e-6, as `check` compares)
+        let mut unused: Vec<&Value> = g[gs..ge].iter().collect();
+        let same = w[ws..we].iter().all(|x| {
+            let hit = unused.iter().position(|y| first_difference(x, y, 1e-6, String::new()).is_none());
+            hit.map(|i| unused.swap_remove(i)).is_some()
+        });
+        if same || (last && truncated) {
+            g[gs..ge].clone_from_slice(&w[ws..we]);
+        }
+    }
+    Value::Array(g)
+}
+
 fn short(v: &Value, max: usize) -> String {
     let s = v.to_string();
     if s.chars().count() <= max {
@@ -199,6 +236,19 @@ mod tests {
         assert!(first_difference(&json!([1, 2.0]), &json!([1.0, 2]), 1e-6, String::new()).is_none());
         assert!(first_difference(&json!({"a": 0.5}), &json!({"a": 0.6}), 1e-6, String::new()).is_some());
         assert_eq!(first_difference(&json!({"a": [1, 2]}), &json!({"a": [1, 3]}), 0.0, String::new()).unwrap(), ".a[1]");
+    }
+
+    #[test]
+    fn ties_line_up() {
+        let score = |v: &Value| v[1].clone();
+        let want = json!([["a", 3], ["b", 2], ["c", 2], ["d", 1], ["e", 1]]);
+        let got = json!([["a", 3], ["c", 2], ["b", 2], ["e", 1], ["f", 1]]);
+        assert_eq!(align_ties(&want, got.clone(), score, true), want);
+        let fixed = align_ties(&want, got, score, false);
+        assert_eq!(fixed[1], json!(["b", 2]));
+        assert_eq!(fixed[4], json!(["f", 1]), "an untruncated last run must hold the same items");
+        let other = json!([["a", 3], ["x", 2], ["b", 2]]);
+        assert_eq!(align_ties(&want, other.clone(), score, true), other);
     }
 
     #[test]

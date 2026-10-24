@@ -1,0 +1,10 @@
+[package]
+name = "xtask"
+description = "Rewrite's build tasks: run from source, fetch the runtime libraries, build the installers"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+flate2 = "1"
+rmpv = "1"

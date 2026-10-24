@@ -64,23 +64,28 @@ saving as .doc, and PDF exports typeset by LibreOffice, need LibreOffice.
 ## Run from source
 
 ```bash
-python run.py
+cargo xtask run
 ```
 
-Needs Python 3.9+ with Tkinter, and [Rust](https://rustup.rs) for the document engine in `crates/` (it reads and
-writes the file formats, lays out PDFs and edits them). The first run creates a private `.venv`, installs the
-dependencies and builds the engine; later runs rebuild it only when its source changes. Without Rust, text files
-still work.
+Rewrite is written in Rust with GTK 4. You need [Rust](https://rustup.rs) and GTK 4's development files:
+
+| System | GTK 4 |
+|---|---|
+| Windows | [MSYS2](https://www.msys2.org), then `pacman -S mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-gcc`, with `C:\msys64\ucrt64\bin` on `PATH` and Rust's `stable-x86_64-pc-windows-gnu` toolchain |
+| macOS | `brew install gtk4 pkg-config` |
+| Debian / Ubuntu | `sudo apt install libgtk-4-dev` |
+
+The first run downloads ONNX Runtime and PDFium into `runtime/`. `cargo test` runs the tests.
 
 ## Build the installers
 
 ```bash
-python packaging/build.py
+cargo xtask package
 ```
 
-This builds the installer for the current system into `dist/installers/` (it needs Rust, and on Windows Inno
-Setup 6). Pushing a
-version tag such as `v1.0.0` builds all three on GitHub Actions and attaches them to the release.
+This builds the installer for the current system into `dist/installers/` (on Windows it needs Inno Setup 6; on
+Linux, `linuxdeploy` for the AppImage). Pushing a version tag such as `v1.0.0` builds all three on GitHub Actions
+and attaches them to the release.
 
 ## Credits
 
@@ -89,4 +94,5 @@ Made by **Samrat Dutta** · [github.com/samratduttaofficial](https://github.com/
 Rewording someone else's text does not make it your own work. Cite your sources.
 
 <sub>WordNet 3.0 © Princeton University · word frequencies from `wordfreq` (CC BY-SA 4.0) · RoBERTa-base (MIT) ·
-all-MiniLM-L6-v2 (Apache-2.0) · `humarin/chatgpt_paraphraser_on_T5_base` (OpenRAIL), run with ONNX Runtime.</sub>
+all-MiniLM-L6-v2 (Apache-2.0) · `humarin/chatgpt_paraphraser_on_T5_base` (OpenRAIL), run with ONNX Runtime ·
+lemminflect (MIT) · PDFium (BSD) · GTK (LGPL).</sub>

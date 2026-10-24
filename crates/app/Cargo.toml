@@ -1,0 +1,23 @@
+[package]
+name = "rewrite-app"
+description = "Rewrite, the desktop program: an offline editor that suggests better words, phrases and sentences"
+version = "1.2.1"
+edition.workspace = true
+publish.workspace = true
+default-run = "rewrite"
+
+[[bin]]
+name = "rewrite"
+path = "src/main.rs"
+
+[dependencies]
+gtk4 = { version = "0.11.5", features = ["v4_12"] }
+rewrite-core = { path = "../core" }
+rewrite-lang = { path = "../lang" }
+rewrite-nlp = { path = "../nlp" }
+rewrite-pdfium = { path = "../pdfium" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+regex = "1.13.1"
+fancy-regex = "0.20.0"
+

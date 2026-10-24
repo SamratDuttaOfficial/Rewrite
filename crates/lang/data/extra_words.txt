@@ -1,0 +1,27 @@
+dataset datasets app apps smartphone smartphones wifi offline online email emails internet website websites blog
+blogs pdf pdfs tokenizer tokenizers tokenization tokenize tokenized checkbox checkboxes frontend backend
+hyperparameter hyperparameters pretrained pretraining finetune finetuned finetuning embedding embeddings
+paraphraser paraphrasers markdown latex docstring docstrings uninstaller installer installers preprocess
+preprocessed preprocessing postprocessing runtime runtimes workflow workflows codebase toolbar toolbars dropdown
+filename filenames username usernames timestamp timestamps namespace namespaces login logout signup metadata
+changelog readme config configs repo repos api apis url urls html css json yaml xml csv sql http https cpu cpus
+gpu gpus ram ui ux ios android linux macos unix ubuntu debian github gitlab wikipedia google youtube facebook
+twitter linkedin instagram javascript typescript python numpy pytorch tensorflow jupyter docker kubernetes
+roberta bert gpt llm llms onnx wordnet async boolean bool int str enum struct tuple tuples iterable iterator
+callback callbacks middleware plugin plugins webhook webhooks endpoint endpoints localhost unicode ascii utf
+regex regexes substring substrings subclass subclasses superclass refactor refactored refactoring autocomplete
+autosave hotkey hotkeys screenshot screenshots unsubscribe upload uploads uploaded uploading download downloads
+downloaded downloading downloadable inbox emoji emojis hashtag hashtags podcast podcasts startup startups
+blockchain bitcoin cryptocurrency crowdfunding onboarding stakeholder stakeholders roadmap roadmaps deliverable
+deliverables scalable scalability usability interoperability maintainability reproducibility explainability
+performant benchmark benchmarks benchmarking ablation ablations overfitting underfitting overfit regularization
+backpropagation softmax relu logits logit multimodal multilingual monolingual unsupervised preprint preprints
+arxiv doi et al etc vs ie eg viz approx misc info intro param params arg args kwargs stdin stdout stderr todo
+pre post non anti co multi sub meta pseudo quasi inter intra hyper micro macro nano mega giga kilo milli semi
+ms kb mb gb tb khz mhz ghz px pt dpi fps kbps mbps okay ok yeah hmm hello hi bye thanks gonna wanna gotta kinda
+mr mrs dr prof jr sr january february march april may june july august september october november december
+monday tuesday wednesday thursday friday saturday sunday english french german spanish italian chinese japanese
+korean russian arabic hindi bengali indian american british european african asian australian canadian america
+england britain france germany spain italy china japan india russia europe africa asia australia canada london
+paris berlin tokyo delhi rewrite rewrites rewording reworded rephrase rephrased typo typos programmatically
+txt docx odt rtf tex dmg exe png jpg jpeg gif svg zip admin admins diff diffs stats popup popups sync

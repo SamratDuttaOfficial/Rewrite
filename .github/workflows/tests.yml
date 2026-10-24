@@ -1,4 +1,6 @@
 # Runs the Rust tests, including the parity tests against the recorded Python fixtures, on every push.
+# The desktop program is built and tested on Linux, where GTK installs in seconds; the libraries are
+# tested on all three systems.
 name: tests
 
 on:
@@ -12,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-22.04]
+        os: [windows-latest, macos-latest, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -24,5 +26,14 @@ jobs:
             ~/.cargo/git
             target
           key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-      # The Python bridge (crates/py) is left out: it needs a Python to link against and is gone after the move.
-      - run: cargo test --workspace --exclude rewrite-native
+      - name: GTK (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev
+      - name: Runtime libraries (ONNX Runtime, PDFium)
+        run: cargo xtask runtime
+      - name: Test everything (Linux)
+        if: runner.os == 'Linux'
+        run: cargo test --workspace
+      - name: Test the libraries
+        if: runner.os != 'Linux'
+        run: cargo test --workspace --exclude rewrite-app

@@ -9,6 +9,8 @@ __pycache__/
 build/
 dist/
 /target/
+# ONNX Runtime and PDFium libraries for running from source (cargo xtask runtime fetches them)
+/runtime/
 *.rewrite-tmp
 
 # App data when running from source
