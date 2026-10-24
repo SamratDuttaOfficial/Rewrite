@@ -45,7 +45,12 @@ fn say(msg: &str) {
 }
 
 fn root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().expect("the repository")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().expect("the repository");
+    // Windows gives a \\?\ path, which other programs (Inno Setup) do not take
+    match p.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
+        Some(plain) => PathBuf::from(plain),
+        None => p,
+    }
 }
 
 fn version() -> String {
