@@ -1807,7 +1807,7 @@ impl RichEditor {
         let font = self.font_tag(&ptag_default(), &[]);
         let (fam, size, _, _) = font_of(&font).unwrap_or((th.editor_font().to_string(), th.size, false, false));
         let c = |k: &str| th.c(k);
-        self.css.load_from_string(&format!(
+        self.css.load_from_string(&crate::theme::scale_css(&format!(
             r#"
 .rich-table {{ background-color: {border}; padding: 1px; }}
 textview.rich-cell, textview.rich-cell text {{ background-color: {surface}; color: {text}; caret-color: {text};
@@ -1827,7 +1827,7 @@ label.rich-muted {{ color: {muted}; font-family: "{ui}"; font-size: {small}pt; }
             ui = th.families.ui,
             note = (th.size * 0.7).max(7.0).round(),
             small = crate::theme::UI_SIZE - 1.0,
-        ));
+        )));
     }
 
     /// The zoom or the theme changed: redraw fonts, paragraph spacing and objects.

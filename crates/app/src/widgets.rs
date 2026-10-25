@@ -104,6 +104,7 @@ pub fn screen_scale() -> i32 {
 
 /// An icon image that takes the text colour of its widget.
 pub fn icon(name: &str, size: i32) -> gtk::Image {
+    let size = crate::theme::px(size);
     let img = gtk::Image::from_paintable(Some(&IconPaintable::new(name, size)));
     img.set_pixel_size(size);
     img
@@ -220,7 +221,7 @@ impl Toggle {
 pub fn separator(margin: i32) -> gtk::Widget {
     let s = gtk::Box::new(gtk::Orientation::Vertical, 0);
     s.add_css_class("vline");
-    s.set_size_request(1, 16);
+    s.set_size_request(1, crate::theme::px(16));
     s.set_valign(gtk::Align::Center);
     s.set_margin_start(margin);
     s.set_margin_end(margin);
@@ -255,8 +256,8 @@ pub fn wrap_label(text: &str, classes: &[&str]) -> gtk::Label {
 /// How well a suggestion fits, as a short bar: green from 0.66, accent from 0.4, faint below.
 pub fn fit_bar(theme: &crate::theme::Theme, fit: f64) -> gtk::DrawingArea {
     let d = gtk::DrawingArea::new();
-    d.set_content_width(28);
-    d.set_content_height(4);
+    d.set_content_width(crate::theme::px(28));
+    d.set_content_height(crate::theme::px(4));
     d.set_valign(gtk::Align::Center);
     let track = theme.rgba("border");
     let fill = theme.rgba(if fit >= 0.66 { "good" } else if fit >= 0.4 { "accent" } else { "faint" });

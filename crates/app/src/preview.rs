@@ -55,7 +55,7 @@ fn css_text(app: &App) -> String {
 fn refresh_css(app: &App) {
     CSS.with(|c| {
         if let Some(p) = c.get() {
-            p.load_from_string(&css_text(app));
+            p.load_from_string(&crate::theme::scale_css(&css_text(app)));
         }
     });
 }
@@ -66,7 +66,7 @@ fn ensure_css(app: &AppRc) {
             return;
         }
         let provider = gtk::CssProvider::new();
-        provider.load_from_string(&css_text(app));
+        provider.load_from_string(&crate::theme::scale_css(&css_text(app)));
         if let Some(display) = gdk::Display::default() {
             gtk::style_context_add_provider_for_display(&display, &provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 2);
         }

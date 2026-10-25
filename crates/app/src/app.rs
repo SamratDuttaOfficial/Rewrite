@@ -338,7 +338,7 @@ impl App {
             win.maximize();
         }
         win.set_default_size(w, h);
-        win.set_size_request(760, 480);
+        win.set_size_request(theme::px(760), theme::px(480));
         if let (Some(display), Some(icons)) = (gdk::Display::default(), rewrite_core::paths::asset("icons")) {
             gtk::IconTheme::for_display(&display).add_search_path(icons);
         }
@@ -464,7 +464,7 @@ impl App {
         editor_frame.add_css_class("surface");
         let panel_frame = gtk::Box::new(gtk::Orientation::Vertical, 0);
         panel_frame.add_css_class("panel");
-        panel_frame.set_size_request(320, 220);
+        panel_frame.set_size_request(theme::px(320), theme::px(220));
 
         let left = gtk::Paned::new(gtk::Orientation::Vertical);
         left.set_start_child(Some(&editor_frame));
@@ -504,7 +504,7 @@ impl App {
         progress_lbl.set_visible(false);
         sb.append(&progress_lbl);
         let progress = gtk::ProgressBar::new();
-        progress.set_size_request(120, -1);
+        progress.set_size_request(theme::px(120), -1);
         progress.set_valign(gtk::Align::Center);
         progress.set_visible(false);
         sb.append(&progress);
@@ -629,7 +629,7 @@ impl App {
     pub fn place_sash(&self) {
         let w = self.w();
         let width = w.pane.width();
-        if width < 500 {
+        if width < theme::px(500) {
             let a = self.weak();
             glib::timeout_add_local_once(std::time::Duration::from_millis(100), move || {
                 if let Some(app) = a.upgrade() {
@@ -640,13 +640,13 @@ impl App {
         }
         if self.st.borrow().preview_on {
             let split = self.settings().preview_split;
-            w.pane.set_position(360.max((width as f64 * split) as i32));
+            w.pane.set_position(theme::px(360).max((width as f64 * split) as i32));
             let h = w.left.height();
             if h > 0 {
-                w.left.set_position(140.max(h - 150.max((h as f64 * 0.3) as i32)));
+                w.left.set_position(theme::px(140).max(h - theme::px(150).max((h as f64 * 0.3) as i32)));
             }
         } else {
-            w.pane.set_position(360.max(width - 320));
+            w.pane.set_position(theme::px(360).max(width - theme::px(320)));
         }
     }
 

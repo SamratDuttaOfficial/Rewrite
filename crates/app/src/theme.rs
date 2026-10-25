@@ -89,6 +89,44 @@ impl Families {
     }
 }
 
+/// How much larger than 96 dpi the screen is set (1.25 at 125%). GTK on Windows makes text larger at such
+/// settings but not pixel sizes, so icons and spacing are multiplied by this, as the earlier version did;
+/// elsewhere GTK scales whole pixels itself and this is 1.
+pub fn ui_scale() -> f64 {
+    thread_local! {
+        static SCALE: std::cell::OnceCell<f64> = const { std::cell::OnceCell::new() };
+    }
+    SCALE.with(|s| {
+        *s.get_or_init(|| {
+            if !cfg!(windows) {
+                return 1.0;
+            }
+            // GTK keeps the screen's dpi (times 1024) in this setting
+            let dpi = gtk::Settings::default().map_or(-1, |s| s.gtk_xft_dpi());
+            if dpi > 0 { (dpi as f64 / 1024.0 / 96.0).clamp(1.0, 4.0) } else { 1.0 }
+        })
+    })
+}
+
+/// A size in pixels at this screen's scale.
+pub fn px(n: i32) -> i32 {
+    (n as f64 * ui_scale()).round() as i32
+}
+
+/// A style sheet with its pixel sizes scaled to the screen (1 px lines stay 1 px).
+pub fn scale_css(css: &str) -> String {
+    let k = ui_scale();
+    if (k - 1.0).abs() < 0.01 {
+        return css.to_string();
+    }
+    let re = regex::Regex::new(r"(\d+(?:\.\d+)?)px").expect("a valid pattern");
+    re.replace_all(css, |c: &regex::Captures| {
+        let v: f64 = c[1].parse().unwrap_or(0.0);
+        if v <= 1.0 { c[0].to_string() } else { format!("{}px", (v * k).round()) }
+    })
+    .into_owned()
+}
+
 /// The base size of interface text, in points.
 pub const UI_SIZE: f64 = if cfg!(target_os = "macos") { 12.0 } else { 9.0 };
 
@@ -156,7 +194,7 @@ impl Theme {
     }
 
     fn load_css(&self) {
-        self.provider.load_from_string(&self.css());
+        self.provider.load_from_string(&scale_css(&self.css()));
     }
 
     fn css(&self) -> String {
