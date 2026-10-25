@@ -39,7 +39,7 @@ pub fn install(win: &impl IsA<gtk::Window>, title: &str, start: Option<&gtk::Wid
     }
     if icon && !cfg!(target_os = "macos") {
         let img = gtk::Image::from_icon_name("rewrite");
-        img.set_pixel_size(16);
+        img.set_pixel_size(20);
         img.set_margin_start(9);
         img.set_margin_end(4);
         left.append(&img);
@@ -76,7 +76,7 @@ fn windows_buttons(win: &gtk::Window, buttons: Buttons) -> gtk::Box {
         if !extra.is_empty() {
             b.add_css_class(extra);
         }
-        b.set_child(Some(&widgets::icon(icon, 12)));
+        b.set_child(Some(&widgets::icon(icon, 14)));
         b.set_tooltip_text(Some(tip));
         b.set_focus_on_click(false);
         b.set_can_focus(false);

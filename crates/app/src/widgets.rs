@@ -48,8 +48,9 @@ mod imp {
                 (c.green() * 255.0).round() as u8,
                 (c.blue() * 255.0).round() as u8
             );
-            // drawn at twice the size: sharp on scaled screens, and smooth when shown at 1x
-            let px = ((width.max(height) * 2.0).ceil() as usize).max(8);
+            // drawn at exactly the screen's pixels: the strokes then sit on the pixel grid and stay dark and
+            // sharp (a larger picture scaled down blurs thin lines into a pale grey)
+            let px = ((width.max(height) * screen_scale() as f64).round() as usize).max(8);
             let tex = crate::icons::texture(&self.name.borrow(), &hex, px);
             let snap = snapshot.downcast_ref::<gtk::Snapshot>().expect("a GTK snapshot");
             if c.alpha() < 1.0 {
@@ -79,6 +80,26 @@ impl IconPaintable {
         self.imp().name.replace(name.to_string());
         self.invalidate_contents();
     }
+}
+
+/// How many screen pixels GTK uses per logical pixel: the largest of the monitors' scales (1 on most
+/// Windows screens, where GTK scales text but not pixels; 2 on Retina and other high-density screens).
+pub fn screen_scale() -> i32 {
+    thread_local! {
+        static SCALE: std::cell::OnceCell<i32> = const { std::cell::OnceCell::new() };
+    }
+    SCALE.with(|s| {
+        *s.get_or_init(|| {
+            let Some(display) = gdk::Display::default() else { return 1 };
+            let monitors = display.monitors();
+            (0..monitors.n_items())
+                .filter_map(|k| monitors.item(k).and_then(|m| m.downcast::<gdk::Monitor>().ok()))
+                .map(|m| m.scale_factor())
+                .max()
+                .unwrap_or(1)
+                .max(1)
+        })
+    })
 }
 
 /// An icon image that takes the text colour of its widget.

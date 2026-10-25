@@ -1,7 +1,7 @@
 ; Inno Setup script for Rewrite. Normally compiled by  cargo xtask package,
 ; which passes /DVersion, /DSrc, /DOutDir and /DIcon. The program is in bin\, next to GTK's DLLs.
 #ifndef Version
-  #define Version "1.2.1"
+  #define Version "2.0.0"
 #endif
 #ifndef Src
   #define Src "..\..\build\app\Rewrite"

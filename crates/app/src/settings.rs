@@ -27,6 +27,8 @@ pub struct Settings {
     pub find_case: bool,
     pub find_word: bool,
     pub find_regex: bool,
+    /// The window was maximised when Rewrite closed.
+    pub maximized: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_dir: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,6 +64,7 @@ impl Default for Settings {
             find_case: false,
             find_word: false,
             find_regex: false,
+            maximized: false,
             last_dir: None,
             export_target: None,
             export_paper: None,

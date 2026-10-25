@@ -1,6 +1,6 @@
 # Moving Rewrite to Rust
 
-Status: done (2026-10-25). Rewrite is one Rust program on GTK 4; the Python/Tk version is gone. Started from
+Status: done (2026-10-25), released as 2.0.0. Rewrite is one Rust program on GTK 4; the Python/Tk version is gone. Started from
 commit `0da855b` (version 1.2.1).
 
 ## What changed for users

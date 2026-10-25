@@ -12,7 +12,7 @@ fn main() {
     let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("..").join("..");
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let mut pngs = Vec::new();
-    for size in [16, 24, 32, 48, 64, 256] {
+    for size in [16, 20, 24, 32, 40, 48, 64, 256] {
         let p = root.join(format!("assets/icons/hicolor/{size}x{size}/apps/rewrite.png"));
         println!("cargo:rerun-if-changed={}", p.display());
         match std::fs::read(&p) {

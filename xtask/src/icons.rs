@@ -10,8 +10,9 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// The sizes rendered: Windows (16, 24, 32, 48, 256), Linux (hicolor), macOS (up to 1024 for Retina).
-pub const SIZES: [u32; 9] = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
+/// The sizes rendered: Windows (16 to 256; 20 and 40 are the small and large icons at 125%), Linux (hicolor),
+/// macOS (up to 1024 for Retina).
+pub const SIZES: [u32; 11] = [16, 20, 24, 32, 40, 48, 64, 128, 256, 512, 1024];
 
 const BLUE: &str = "#3B5BDB";
 const YELLOW: &str = "#FFD43B";

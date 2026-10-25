@@ -332,7 +332,7 @@ fn icon_pngs(sizes: &[u32]) -> Result<Vec<(u32, Vec<u8>)>, String> {
 
 /// A Windows icon holding the PNGs as they are.
 fn write_ico(path: &Path) -> Result<(), String> {
-    let pngs = icon_pngs(&[16, 24, 32, 48, 64, 256])?;
+    let pngs = icon_pngs(&[16, 20, 24, 32, 40, 48, 64, 256])?;
     let mut ico = vec![0u8, 0, 1, 0];
     ico.extend_from_slice(&(pngs.len() as u16).to_le_bytes());
     let mut offset = 6 + 16 * pngs.len();

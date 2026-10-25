@@ -326,10 +326,17 @@ impl App {
     fn build(self: &Rc<Self>) {
         let win = &self.win;
         let (sw, sh) = screen_size();
-        let (w, h) = match parse_size(&self.settings().geometry) {
-            Some((w, h)) => (w.min(sw), h.min(sh)),
-            None => (1360.min(sw * 82 / 100), 860.min(sh * 82 / 100)),
+        let saved = parse_size(&self.settings().geometry);
+        // a window that filled the screen (or was maximised) opens maximised: at the screen's full size it
+        // would run past its edges with the window's border and shadow
+        let full = self.settings().maximized || saved.is_some_and(|(w, h)| w >= sw - 40 && h >= sh * 85 / 100);
+        let (w, h) = match saved {
+            Some((w, h)) if !full => (w.min(sw), h.min(sh)),
+            _ => (1360.min(sw * 82 / 100), 860.min(sh * 82 / 100)),
         };
+        if full {
+            win.maximize();
+        }
         win.set_default_size(w, h);
         win.set_size_request(760, 480);
         if let (Some(display), Some(icons)) = (gdk::Display::default(), rewrite_core::paths::asset("icons")) {
@@ -1869,7 +1876,9 @@ impl App {
                     me.settings_mut().preview_split = ((w.pane.position() as f64 / width as f64) * 1000.0).round() / 1000.0;
                 }
                 let (ww, hh) = (me.win.width(), me.win.height());
-                if ww > 0 && hh > 0 && !me.win.is_maximized() {
+                let maximized = me.win.is_maximized();
+                me.settings_mut().maximized = maximized;
+                if ww > 0 && hh > 0 && !maximized {
                     me.settings_mut().geometry = format!("{ww}x{hh}");
                 }
             }

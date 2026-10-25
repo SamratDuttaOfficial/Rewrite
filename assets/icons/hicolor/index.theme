@@ -1,9 +1,13 @@
 [Icon Theme]
 Name=hicolor
-Directories=16x16/apps,24x24/apps,32x32/apps,48x48/apps,64x64/apps,128x128/apps,256x256/apps,512x512/apps,1024x1024/apps
+Directories=16x16/apps,20x20/apps,24x24/apps,32x32/apps,40x40/apps,48x48/apps,64x64/apps,128x128/apps,256x256/apps,512x512/apps,1024x1024/apps
 
 [16x16/apps]
 Size=16
+Type=Fixed
+
+[20x20/apps]
+Size=20
 Type=Fixed
 
 [24x24/apps]
@@ -12,6 +16,10 @@ Type=Fixed
 
 [32x32/apps]
 Size=32
+Type=Fixed
+
+[40x40/apps]
+Size=40
 Type=Fixed
 
 [48x48/apps]
