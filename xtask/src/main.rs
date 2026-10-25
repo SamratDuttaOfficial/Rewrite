@@ -530,7 +530,8 @@ fn package_linux(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
             .arg("gtk")
             .arg("--desktop-file")
             .arg(&desk)
-            .args(icons::SIZES.iter().filter(|n| **n <= 512).flat_map(|n| {
+            // linuxdeploy takes only the usual hicolor sizes (not 40, one of the Windows sizes)
+            .args(icons::SIZES.iter().filter(|n| [16, 20, 24, 32, 48, 64, 128, 256, 512].contains(*n)).flat_map(|n| {
                 ["--icon-file".into(), root().join(format!("assets/icons/hicolor/{n}x{n}/apps/rewrite.png")).into_os_string()]
             }))
             .arg("--icon-filename")
