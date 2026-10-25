@@ -170,6 +170,11 @@ fn strokes(name: &str) -> Vec<Stroke> {
         "rotate-right" => refresh(),
         "page-add" => cat(vec![page(), vec![l(&[12.5, 10.5, 12.5, 17.5]), l(&[9., 14., 16., 14.])]]),
         "pages" => vec![l(&[8., 3., 20., 3., 20., 17.]), l(&[4., 7., 16., 7., 16., 21., 4., 21., 4., 7.])],
+        // window buttons
+        "win-min" => vec![l(&[6., 12., 18., 12.])],
+        "win-max" => vec![l(&[6.5, 6.5, 17.5, 6.5, 17.5, 17.5, 6.5, 17.5, 6.5, 6.5])],
+        "win-restore" => vec![l(&[6.5, 9.5, 14.5, 9.5, 14.5, 17.5, 6.5, 17.5, 6.5, 9.5]), l(&[9.5, 9.5, 9.5, 6.5, 17.5, 6.5, 17.5, 14.5, 14.5, 14.5])],
+        "win-close" => vec![l(&[6.5, 6.5, 17.5, 17.5]), l(&[17.5, 6.5, 6.5, 17.5])],
         "merge" => vec![l(&[8., 3., 20., 3., 20., 17.]), l(&[4., 7., 16., 7., 16., 21., 4., 21., 4., 7.]), l(&[10., 11., 10., 17.]), l(&[7., 14., 13., 14.])],
         _ => vec![],
     }
@@ -251,7 +256,7 @@ pub const _ALL: &[&str] = &[
     "clear-format", "align-left", "align-center", "align-right", "align-justify", "list-bullet", "list-number",
     "indent", "outdent", "style", "image", "table", "chart", "sigma", "footnote", "rule", "page-break", "page-setup",
     "export", "file", "convert", "pointer", "type", "note", "draw", "eraser", "box", "rotate-left", "rotate-right",
-    "page-add", "pages", "merge",
+    "page-add", "pages", "merge", "win-min", "win-max", "win-restore", "win-close",
 ];
 
 #[cfg(test)]

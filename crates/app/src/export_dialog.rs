@@ -497,8 +497,7 @@ impl ExportDialog {
     }
 
     fn alert(&self, detail: &str) {
-        let a = gtk::AlertDialog::builder().modal(true).message("Export").detail(detail).build();
-        a.show(Some(&self.d.win));
+        crate::dialogs::message(&self.d.win, "Export", detail, &["OK"], 0, 0, |_| {});
     }
 
     fn stop(&self) {

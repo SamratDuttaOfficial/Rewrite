@@ -750,6 +750,7 @@ impl Form {
     fn new(app: &AppRc, title: &str, width: i32) -> Form {
         let win = gtk::Window::builder().title(title).modal(true).transient_for(&app.win).resizable(false).default_width(width).build();
         win.add_css_class("dialog");
+        crate::titlebar::install(&win, title, None, false, crate::titlebar::Buttons::Close);
         let body = gtk::Box::new(gtk::Orientation::Vertical, 0);
         body.set_margin_start(16);
         body.set_margin_end(16);

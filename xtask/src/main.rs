@@ -5,6 +5,7 @@
 //!     cargo xtask package      build the installer for this system into dist/installers/
 //!     cargo xtask selftest     run the release build's self test
 //!     cargo xtask thesaurus --wordnet <dir> --wordfreq <file> [--out <file>]
+//!     cargo xtask icons [--font <ttf>]   draw the app icon at every size into assets/icons/
 //!                              build assets/thesaurus.json.gz from WordNet 3.0 and wordfreq
 //!
 //! Packaging needs: on Windows MSYS2's UCRT64 GTK and Inno Setup 6; on macOS Homebrew's GTK; on Linux
@@ -16,6 +17,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 
+mod icons;
 mod thesaurus;
 
 const ORT: &str = "1.30.0";
@@ -29,6 +31,7 @@ fn main() {
         Some("package") => package(),
         Some("selftest") => build_release().and_then(|e| selftest(&e)),
         Some("thesaurus") => thesaurus::run(&args[1..]),
+        Some("icons") => icons::run(&root(), &args[1..]),
         _ => {
             eprintln!("usage: cargo xtask run [file] | runtime | package | selftest | thesaurus --wordnet <dir> --wordfreq <file> [--out <file>]");
             exit(2);
@@ -317,9 +320,10 @@ fn find_iscc() -> Option<PathBuf> {
     places.into_iter().find(|p| p.is_file())
 }
 
-fn icon_pngs() -> Result<Vec<(u32, Vec<u8>)>, String> {
-    [32, 64, 256]
-        .into_iter()
+fn icon_pngs(sizes: &[u32]) -> Result<Vec<(u32, Vec<u8>)>, String> {
+    sizes
+        .iter()
+        .copied()
         .map(|s| {
             fs::read(root().join(format!("assets/icons/hicolor/{s}x{s}/apps/rewrite.png"))).map(|d| (s, d)).map_err(|e| e.to_string())
         })
@@ -328,7 +332,7 @@ fn icon_pngs() -> Result<Vec<(u32, Vec<u8>)>, String> {
 
 /// A Windows icon holding the PNGs as they are.
 fn write_ico(path: &Path) -> Result<(), String> {
-    let pngs = icon_pngs()?;
+    let pngs = icon_pngs(&[16, 24, 32, 48, 64, 256])?;
     let mut ico = vec![0u8, 0, 1, 0];
     ico.extend_from_slice(&(pngs.len() as u16).to_le_bytes());
     let mut offset = 6 + 16 * pngs.len();
@@ -346,10 +350,12 @@ fn write_ico(path: &Path) -> Result<(), String> {
     fs::write(path, ico).map_err(|e| e.to_string())
 }
 
-/// A macOS icon (32, 64 and 256 pixel PNGs).
+/// A macOS icon, from 16 to 1024 pixels (Retina screens use the large ones).
 fn write_icns(path: &Path) -> Result<(), String> {
     let mut body = vec![];
-    for ((_, data), tag) in icon_pngs()?.iter().zip([b"icp5", b"icp6", b"ic08"]) {
+    // the PNG types of an .icns: 16, 32, 64, 128, 256, 512 and 1024 pixels
+    let tags = [b"icp4", b"icp5", b"icp6", b"ic07", b"ic08", b"ic09", b"ic10"];
+    for ((_, data), tag) in icon_pngs(&[16, 32, 64, 128, 256, 512, 1024])?.iter().zip(tags) {
         body.extend_from_slice(tag);
         body.extend_from_slice(&((data.len() + 8) as u32).to_be_bytes());
         body.extend_from_slice(data);
@@ -481,10 +487,13 @@ fn package_linux(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
         }
         copy_dir(&root().join("assets"), &app.join("assets"))?;
         fs::create_dir_all(deb.join("usr/share/applications")).map_err(|e| e.to_string())?;
-        fs::write(deb.join("usr/share/applications/rewrite.desktop"), desktop("/opt/rewrite/rewrite")).map_err(|e| e.to_string())?;
-        let icons = deb.join("usr/share/icons/hicolor/256x256/apps");
-        fs::create_dir_all(&icons).map_err(|e| e.to_string())?;
-        fs::copy(root().join("assets/icons/hicolor/256x256/apps/rewrite.png"), icons.join("rewrite.png")).map_err(|e| e.to_string())?;
+        // named after the app id, which is how Wayland desktops find the window's entry and icon
+        fs::write(deb.join("usr/share/applications/com.samratdutta.rewrite.desktop"), desktop("/opt/rewrite/rewrite")).map_err(|e| e.to_string())?;
+        for n in icons::SIZES {
+            let dir = deb.join(format!("usr/share/icons/hicolor/{n}x{n}/apps"));
+            fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            fs::copy(root().join(format!("assets/icons/hicolor/{n}x{n}/apps/rewrite.png")), dir.join("rewrite.png")).map_err(|e| e.to_string())?;
+        }
         fs::create_dir_all(deb.join("usr/bin")).map_err(|e| e.to_string())?;
         symlink(Path::new("/opt/rewrite/rewrite"), &deb.join("usr/bin/rewrite"));
         let size: u64 = walk(&deb).iter().filter_map(|p| p.metadata().ok()).map(|m| m.len()).sum::<u64>() / 1024;
@@ -511,7 +520,7 @@ fn package_linux(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
             fs::copy(lib, bin.join(lib.file_name().unwrap())).map_err(|e| e.to_string())?;
         }
         copy_dir(&root().join("assets"), &appdir.join("usr/share/rewrite/assets"))?;
-        let desk = build.join("rewrite.desktop");
+        let desk = build.join("com.samratdutta.rewrite.desktop");
         fs::write(&desk, desktop("rewrite")).map_err(|e| e.to_string())?;
         let machine = if env::consts::ARCH == "aarch64" { "aarch64" } else { "x86_64" };
         sh(Command::new(&linuxdeploy)
@@ -521,8 +530,9 @@ fn package_linux(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
             .arg("gtk")
             .arg("--desktop-file")
             .arg(&desk)
-            .arg("--icon-file")
-            .arg(root().join("assets/icons/hicolor/256x256/apps/rewrite.png"))
+            .args(icons::SIZES.iter().filter(|n| **n <= 512).flat_map(|n| {
+                ["--icon-file".into(), root().join(format!("assets/icons/hicolor/{n}x{n}/apps/rewrite.png")).into_os_string()]
+            }))
             .arg("--icon-filename")
             .arg("rewrite")
             .arg("--output")

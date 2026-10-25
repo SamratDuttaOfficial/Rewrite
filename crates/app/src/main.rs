@@ -18,6 +18,7 @@ mod rich;
 mod selftest;
 mod settings;
 mod theme;
+mod titlebar;
 mod widgets;
 mod workers;
 
@@ -49,6 +50,11 @@ fn main() -> glib::ExitCode {
     bundle_env();
     recovery::install();
     let args: Vec<String> = std::env::args().collect();
+    glib::set_application_name("Rewrite");
+    if cfg!(target_os = "linux") {
+        // the X11 window class, so desktops match the window with com.samratdutta.rewrite.desktop
+        glib::set_prgname(Some("com.samratdutta.rewrite"));
+    }
     if args.get(1).map(String::as_str) == Some("--selftest") {
         return glib::ExitCode::from(selftest::run(args.get(2).map(PathBuf::from)) as u8);
     }

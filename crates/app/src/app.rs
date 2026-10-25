@@ -142,6 +142,8 @@ pub struct Tags {
 }
 
 pub struct Widgets {
+    /// The title in the window's own title bar.
+    pub title: gtk::Label,
     pub bar_slot: gtk::Box,
     pub pane: gtk::Paned,
     pub left: gtk::Paned,
@@ -339,8 +341,16 @@ impl App {
         root.add_css_class("bg");
 
         let recent_menu = gio::Menu::new();
-        let menubar = gtk::PopoverMenuBar::from_model(Some(&self.build_menu(&recent_menu)));
-        root.append(&menubar);
+        let model = self.build_menu(&recent_menu);
+        let menubar: Option<gtk::Widget> = if cfg!(target_os = "macos") {
+            // on macOS the menus are in the system menu bar at the top of the screen
+            self.gapp.set_menubar(Some(&model));
+            self.win.set_show_menubar(true);
+            None
+        } else {
+            Some(gtk::PopoverMenuBar::from_model(Some(&model)).upcast())
+        };
+        let title = crate::titlebar::install(&self.win, "Rewrite", menubar.as_ref(), true, crate::titlebar::Buttons::All);
 
         // toolbar: icon buttons, each one explained by its tooltip
         let bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -506,6 +516,7 @@ impl App {
         win.set_child(Some(&root));
 
         let _ = self.w.set(Widgets {
+            title,
                         bar_slot,
             pane,
             left,
@@ -1209,7 +1220,9 @@ impl App {
         let st = self.st.borrow();
         let name = st.doc.name();
         let dot = if st.dirty { "• " } else { "" };
-        self.win.set_title(Some(&format!("{dot}{name} — Rewrite")));
+        let title = format!("{dot}{name} — Rewrite");
+        self.win.set_title(Some(&title));
+        self.w().title.set_label(&title);
         let mut kind = kind_label(&st.doc.kind);
         if matches!(st.doc.kind.as_str(), "rich" | "pdf") {
             let ext = st.doc.source_ext.clone().unwrap_or_else(|| st.doc.ext());
@@ -1227,25 +1240,11 @@ impl App {
             return;
         }
         let name = self.st.borrow().doc.name();
-        let dialog = gtk::AlertDialog::builder()
-            .modal(true)
-            .message("Unsaved changes")
-            .detail(format!("Save changes to {name}?"))
-            .buttons(["Cancel", "Don't save", "Save"])
-            .cancel_button(0)
-            .default_button(2)
-            .build();
         let me = self.clone();
-        glib::spawn_future_local(async move {
-            match dialog.choose_future(Some(&me.win)).await {
-                Ok(2) => {
-                    let me2 = me.clone();
-                    me.save_then(false, move |ok| {
-                        let _ = &me2;
-                        then(ok)
-                    });
-                }
-                Ok(1) => then(true),
+        crate::dialogs::message(&self.win, "Unsaved changes", &format!("Save changes to {name}?"), &["Cancel", "Don't save", "Save"], 2, 0, move |choice| {
+            match choice {
+                2 => me.save_then(false, then),
+                1 => then(true),
                 _ => then(false),
             }
         });
@@ -1584,8 +1583,7 @@ impl App {
     }
 
     pub fn error(&self, title: &str, detail: &str) {
-        let d = gtk::AlertDialog::builder().modal(true).message(title).detail(detail).build();
-        d.show(Some(&self.win));
+        crate::dialogs::message(&self.win, title, detail, &["OK"], 0, 0, |_| {});
     }
 
     pub fn info(&self, title: &str, detail: &str) {
@@ -1594,18 +1592,7 @@ impl App {
 
     /// Ask a yes/no question; `then(true)` on yes.
     pub fn ask(&self, title: &str, detail: &str, then: impl FnOnce(bool) + 'static) {
-        let d = gtk::AlertDialog::builder()
-            .modal(true)
-            .message(title)
-            .detail(detail)
-            .buttons(["No", "Yes"])
-            .cancel_button(0)
-            .default_button(1)
-            .build();
-        let win = self.win.clone();
-        glib::spawn_future_local(async move {
-            then(matches!(d.choose_future(Some(&win)).await, Ok(1)));
-        });
+        crate::dialogs::message(&self.win, title, detail, &["No", "Yes"], 1, 0, move |c| then(c == 1));
     }
 
     pub fn flash_msg(&self, text: &str, ms: u32) {

@@ -270,6 +270,7 @@ dropdown button, combobox button {{ background-color: {surface}; color: {text}; 
             head = UI_SIZE + 2.0,
             item = UI_SIZE + 1.0,
         );
+        s.push_str(&crate::titlebar::css(&|k| self.c(k), UI_SIZE - 1.0));
         for (kind, (fg, bg)) in &self.p.badge {
             s.push_str(&format!(".badge-{} {{ color: {fg}; background-color: {bg}; }}\n", kind.replace(' ', "-")));
         }

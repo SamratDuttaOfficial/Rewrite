@@ -1701,6 +1701,7 @@ fn file_filters(types: &[(&str, &[&str])]) -> gio::ListStore {
 fn note_dialog(app: &AppRc, on_done: impl FnOnce(String) + 'static) {
     let win = gtk::Window::builder().title("Note").modal(true).transient_for(&app.win).default_width(460).resizable(false).build();
     win.add_css_class("dialog");
+    crate::titlebar::install(&win, "Note", None, false, crate::titlebar::Buttons::Close);
     let body = gtk::Box::new(gtk::Orientation::Vertical, 6);
     body.add_css_class("dialog");
     body.set_margin_start(16);

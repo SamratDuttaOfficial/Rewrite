@@ -27,6 +27,7 @@ impl Dialog {
         let win = gtk::Window::builder().title(title).modal(true).transient_for(&app.win).resizable(false).destroy_with_parent(true).build();
         win.add_css_class("dialog");
         win.set_icon_name(Some("rewrite"));
+        crate::titlebar::install(&win, title, None, false, crate::titlebar::Buttons::Close);
         let body = gtk::Box::new(gtk::Orientation::Vertical, 0);
         body.add_css_class("dialog");
         body.set_margin_start(18);
@@ -167,6 +168,96 @@ fn with_models(id: u64, f: impl FnOnce(&Rc<ModelsDialog>)) {
         if d.id == id && !d.closed.get() {
             f(&d);
         }
+    }
+}
+
+/// A message with buttons, in place of GTK's alert dialog so it has the app's own title bar and look.
+/// `then` gets the index of the button chosen; Esc or closing the window counts as `cancel`, Enter as
+/// `default` (which is drawn as the main button).
+pub fn message(
+    parent: &impl IsA<gtk::Window>,
+    title: &str,
+    detail: &str,
+    buttons: &[&str],
+    default: usize,
+    cancel: usize,
+    then: impl FnOnce(usize) + 'static,
+) {
+    let win = gtk::Window::builder().title(title).modal(true).transient_for(parent).resizable(false).destroy_with_parent(true).build();
+    win.add_css_class("dialog");
+    crate::titlebar::install(&win, title, None, false, crate::titlebar::Buttons::Close);
+    let body = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    body.add_css_class("dialog");
+    body.set_margin_start(18);
+    body.set_margin_end(18);
+    body.set_margin_top(14);
+    body.set_margin_bottom(14);
+    let head = widgets::wrap_label(title, &["head"]);
+    head.set_max_width_chars(56);
+    body.append(&head);
+    if !detail.is_empty() {
+        let text = widgets::wrap_label(detail, &[]);
+        text.set_max_width_chars(56);
+        text.set_width_chars(36);
+        text.set_selectable(true); // error details can be copied
+        text.set_can_focus(false);
+        if detail.lines().count() > 18 {
+            let scroll = gtk::ScrolledWindow::new();
+            scroll.set_hscrollbar_policy(gtk::PolicyType::Never);
+            scroll.set_min_content_height(300);
+            scroll.set_child(Some(&text));
+            body.append(&scroll);
+        } else {
+            body.append(&text);
+        }
+    }
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    row.set_halign(gtk::Align::End);
+    row.set_margin_top(10);
+    body.append(&row);
+    win.set_child(Some(&body));
+    let then: Rc<RefCell<Option<Box<dyn FnOnce(usize)>>>> = Rc::new(RefCell::new(Some(Box::new(then))));
+    let finish = {
+        let (w, then) = (win.clone(), then.clone());
+        Rc::new(move |i: usize| {
+            if let Some(f) = then.borrow_mut().take() {
+                w.destroy();
+                f(i);
+            }
+        })
+    };
+    let mut first = None;
+    for (i, label) in buttons.iter().enumerate() {
+        let f = finish.clone();
+        let b = widgets::flat_button(label, if i == default { "primary" } else { "ghost" }, None, move || f(i));
+        if i == default {
+            first = Some(b.clone());
+        }
+        row.append(&b);
+    }
+    let keys = gtk::EventControllerKey::new();
+    keys.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let f = finish.clone();
+    keys.connect_key_pressed(move |_, key, _, _| match key {
+        gdk::Key::Escape => {
+            f(cancel);
+            glib::Propagation::Stop
+        }
+        gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter => {
+            f(default);
+            glib::Propagation::Stop
+        }
+        _ => glib::Propagation::Proceed,
+    });
+    win.add_controller(keys);
+    let f = finish.clone();
+    win.connect_close_request(move |_| {
+        f(cancel);
+        glib::Propagation::Stop
+    });
+    win.present();
+    if let Some(b) = first {
+        b.grab_focus();
     }
 }
 
