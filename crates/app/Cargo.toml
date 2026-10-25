@@ -1,7 +1,7 @@
 [package]
 name = "rewrite-app"
 description = "Rewrite, the desktop program: an offline editor that suggests better words, phrases and sentences"
-version = "2.0.0"
+version = "2.0.1"
 edition.workspace = true
 publish.workspace = true
 default-run = "rewrite"
