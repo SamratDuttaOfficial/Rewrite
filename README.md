@@ -87,6 +87,11 @@ This builds the installer for the current system into `dist/installers/` (on Win
 Linux, `linuxdeploy` for the AppImage). Pushing a version tag such as `v1.0.0` builds all three on GitHub Actions
 and attaches them to the release.
 
+## Licence
+
+Free to use, share and change, under the [MIT licence with the Commons Clause](LICENSE): keep the copyright notice
+when you reuse the code, and do not sell Rewrite or a product built mainly on it.
+
 ## Credits
 
 Made by **Samrat Dutta** · [github.com/samratduttaofficial](https://github.com/samratduttaofficial)

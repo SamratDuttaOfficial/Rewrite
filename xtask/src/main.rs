@@ -198,6 +198,12 @@ fn copy_dir(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// The licence travels with every installer: its terms ask that copies keep the notice.
+fn copy_license(dir: &Path) -> Result<(), String> {
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    fs::copy(root().join("LICENSE"), dir.join("LICENSE")).map(|_| ()).map_err(|e| format!("LICENSE: {e}"))
+}
+
 fn package() -> Result<(), String> {
     let exe = build_release()?;
     let build = root().join("build");
@@ -265,6 +271,7 @@ fn package_windows(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> 
         }
     }
     copy_dir(&root().join("assets"), &stage.join("share/rewrite/assets"))?;
+    copy_license(&stage)?;
     selftest(&bin.join("Rewrite.exe"))?;
     let iscc = find_iscc().ok_or("Inno Setup 6 is needed: winget install JRSoftware.InnoSetup")?;
     let icon = build.join("rewrite.ico");
@@ -425,6 +432,7 @@ fn package_macos(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
         }
     }
     copy_dir(&root().join("assets"), &resources.join("assets"))?;
+    copy_license(&resources)?;
     write_icns(&resources.join("rewrite.icns"))?;
     let v = version();
     fs::write(
@@ -486,6 +494,7 @@ fn package_linux(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
             fs::copy(lib, app.join(lib.file_name().unwrap())).map_err(|e| e.to_string())?;
         }
         copy_dir(&root().join("assets"), &app.join("assets"))?;
+        copy_license(&app)?;
         fs::create_dir_all(deb.join("usr/share/applications")).map_err(|e| e.to_string())?;
         // named after the app id, which is how Wayland desktops find the window's entry and icon
         fs::write(deb.join("usr/share/applications/com.samratdutta.rewrite.desktop"), desktop("/opt/rewrite/rewrite")).map_err(|e| e.to_string())?;
@@ -520,6 +529,7 @@ fn package_linux(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
             fs::copy(lib, bin.join(lib.file_name().unwrap())).map_err(|e| e.to_string())?;
         }
         copy_dir(&root().join("assets"), &appdir.join("usr/share/rewrite/assets"))?;
+        copy_license(&appdir.join("usr/share/rewrite"))?;
         let desk = build.join("com.samratdutta.rewrite.desktop");
         fs::write(&desk, desktop("rewrite")).map_err(|e| e.to_string())?;
         let machine = if env::consts::ARCH == "aarch64" { "aarch64" } else { "x86_64" };
