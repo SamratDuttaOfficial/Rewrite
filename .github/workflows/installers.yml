@@ -76,7 +76,8 @@ jobs:
       # Microsoft publishes no ONNX Runtime for Intel Macs after 1.23, so it is built from source once and cached
       - name: ONNX Runtime version
         if: runner.os == 'macOS' && runner.arch == 'X64'
-        run: echo "ORT=$(sed -n 's/^const ORT: &str = "\(.*\)";/\1/p' xtask/src/main.rs)" >> "$GITHUB_ENV"
+        run: |
+          echo "ORT=$(sed -n 's/^const ORT: &str = "\(.*\)";/\1/p' xtask/src/main.rs)" >> "$GITHUB_ENV"
       - name: Cached ONNX Runtime (macOS Intel)
         if: runner.os == 'macOS' && runner.arch == 'X64'
         id: ortcache
