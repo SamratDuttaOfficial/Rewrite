@@ -1,4 +1,4 @@
-# Builds the Windows, macOS and Linux installers. Runs on version tags (v1.0.0) or by hand.
+# Builds the Windows, macOS and Linux installers, for x64 and ARM64. Runs on version tags (v1.0.0) or by hand.
 name: installers
 
 on:
@@ -14,13 +14,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-24.04]
+        # macOS 15 rather than the latest: Homebrew builds GTK for the macOS it runs on, so this sets the oldest
+        # macOS the app supports
+        os: [windows-latest, windows-11-arm, macos-15, macos-15-intel, ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: GTK and the GNU toolchain (Windows)
-        if: runner.os == 'Windows'
+      - name: GTK and the GNU toolchain (Windows x64)
+        if: runner.os == 'Windows' && runner.arch == 'X64'
         id: msys2
         uses: msys2/setup-msys2@v2
         with:
@@ -31,16 +33,39 @@ jobs:
             mingw-w64-ucrt-x86_64-pkgconf
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-binutils
-      - name: Rust and Inno Setup (Windows)
-        if: runner.os == 'Windows'
+      - name: Rust (Windows x64)
+        if: runner.os == 'Windows' && runner.arch == 'X64'
         shell: bash
         run: |
           rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal
           rustup default stable-x86_64-pc-windows-gnu
-          choco install innosetup -y --no-progress
-          UCRT="${{ steps.msys2.outputs.msys2-location }}/ucrt64"
-          echo "MSYS2_UCRT64=$UCRT" >> "$GITHUB_ENV"
-          echo "$(cygpath -w "$UCRT/bin")" >> "$GITHUB_PATH"
+          PREFIX="${{ steps.msys2.outputs.msys2-location }}/ucrt64"
+          echo "MSYS2_PREFIX=$PREFIX" >> "$GITHUB_ENV"
+          echo "$(cygpath -w "$PREFIX/bin")" >> "$GITHUB_PATH"
+
+      - name: GTK, Rust and the LLVM toolchain (Windows ARM64)
+        if: runner.os == 'Windows' && runner.arch == 'ARM64'
+        id: msys2arm
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          update: true
+          install: >-
+            mingw-w64-clang-aarch64-gtk4
+            mingw-w64-clang-aarch64-pkgconf
+            mingw-w64-clang-aarch64-toolchain
+            mingw-w64-clang-aarch64-rust
+      - name: Use MSYS2's Rust (Windows ARM64)
+        if: runner.os == 'Windows' && runner.arch == 'ARM64'
+        shell: bash
+        run: |
+          PREFIX="${{ steps.msys2arm.outputs.msys2-location }}/clangarm64"
+          echo "MSYS2_PREFIX=$PREFIX" >> "$GITHUB_ENV"
+          echo "$(cygpath -w "$PREFIX/bin")" >> "$GITHUB_PATH"
+
+      - name: Inno Setup (Windows)
+        if: runner.os == 'Windows'
+        run: choco install innosetup -y --no-progress
 
       - name: GTK (macOS)
         if: runner.os == 'macOS'
@@ -48,12 +73,36 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         if: runner.os != 'Windows'
 
+      # Microsoft publishes no ONNX Runtime for Intel Macs after 1.23, so it is built from source once and cached
+      - name: ONNX Runtime version
+        if: runner.os == 'macOS' && runner.arch == 'X64'
+        run: echo "ORT=$(sed -n 's/^const ORT: &str = "\(.*\)";/\1/p' xtask/src/main.rs)" >> "$GITHUB_ENV"
+      - name: Cached ONNX Runtime (macOS Intel)
+        if: runner.os == 'macOS' && runner.arch == 'X64'
+        id: ortcache
+        uses: actions/cache@v4
+        with:
+          path: ~/ort-lib
+          key: onnxruntime-${{ env.ORT }}-macos-x86_64
+      - name: Build ONNX Runtime (macOS Intel)
+        if: runner.os == 'macOS' && runner.arch == 'X64' && steps.ortcache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "v$ORT" https://github.com/microsoft/onnxruntime "$RUNNER_TEMP/ort"
+          cd "$RUNNER_TEMP/ort"
+          ./build.sh --config Release --build_shared_lib --parallel --skip_tests --compile_no_warning_as_error \
+            --cmake_extra_defines CMAKE_OSX_ARCHITECTURES=x86_64 onnxruntime_BUILD_UNIT_TESTS=OFF
+          mkdir -p "$HOME/ort-lib"
+          cp build/MacOS/Release/libonnxruntime*.dylib "$HOME/ort-lib/"
+      - name: Use the built ONNX Runtime (macOS Intel)
+        if: runner.os == 'macOS' && runner.arch == 'X64'
+        run: echo "ORT_LIB_DIR=$HOME/ort-lib" >> "$GITHUB_ENV"
+
       - name: GTK and AppImage tools (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update && sudo apt-get install -y libgtk-4-dev libfuse2 file
           mkdir -p "$HOME/tools"
-          curl -fsSL -o "$HOME/tools/linuxdeploy" https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -fsSL -o "$HOME/tools/linuxdeploy" "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-$(uname -m).AppImage"
           curl -fsSL -o "$HOME/tools/linuxdeploy-plugin-gtk.sh" https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
           chmod +x "$HOME/tools/"*
           echo "$HOME/tools" >> "$GITHUB_PATH"
@@ -63,7 +112,7 @@ jobs:
       - run: cargo xtask package
       - uses: actions/upload-artifact@v4
         with:
-          name: rewrite-${{ runner.os }}
+          name: rewrite-${{ runner.os }}-${{ runner.arch }}
           path: dist/installers/*
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')

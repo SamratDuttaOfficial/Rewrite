@@ -8,8 +8,9 @@
 //!     cargo xtask icons [--font <ttf>]   draw the app icon at every size into assets/icons/
 //!                              build assets/thesaurus.json.gz from WordNet 3.0 and wordfreq
 //!
-//! Packaging needs: on Windows MSYS2's UCRT64 GTK and Inno Setup 6; on macOS Homebrew's GTK; on Linux
-//! dpkg-deb for the .deb and linuxdeploy (with its GTK plugin) for the AppImage.
+//! Packaging needs: on Windows MSYS2's GTK (UCRT64 on x64, CLANGARM64 on ARM64) and Inno Setup 6; on macOS
+//! Homebrew's GTK; on Linux dpkg-deb for the .deb and linuxdeploy (with its GTK plugin) for the AppImage.
+//! Where Microsoft publishes no ONNX Runtime (Intel Macs), build it and point ORT_LIB_DIR at it.
 
 use std::collections::BTreeSet;
 use std::env;
@@ -114,24 +115,43 @@ fn runtime() -> Result<Vec<PathBuf>, String> {
     };
     let tmp = root().join("target").join("runtime-download");
     if !ort_files.iter().all(|f| dir.join(f).is_file()) {
-        let (name, ext) = match platform().as_str() {
-            "windows-x64" => ("onnxruntime-win-x64", "zip"),
-            "macos-arm64" => ("onnxruntime-osx-arm64", "tgz"),
-            "macos-x64" => ("onnxruntime-osx-x86_64", "tgz"),
-            "linux-arm64" => ("onnxruntime-linux-aarch64", "tgz"),
-            _ => ("onnxruntime-linux-x64", "tgz"),
+        // ORT_LIB_DIR: a folder with an ONNX Runtime built elsewhere. Microsoft publishes no build for some
+        // systems (none for Intel Macs since 1.23), so there it has to be built from source.
+        let lib = match env::var_os("ORT_LIB_DIR") {
+            Some(d) => PathBuf::from(d),
+            None => {
+                let (name, ext) = match platform().as_str() {
+                    "windows-x64" => ("onnxruntime-win-x64", "zip"),
+                    "windows-arm64" => ("onnxruntime-win-arm64", "zip"),
+                    "macos-arm64" => ("onnxruntime-osx-arm64", "tgz"),
+                    "linux-x64" => ("onnxruntime-linux-x64", "tgz"),
+                    "linux-arm64" => ("onnxruntime-linux-aarch64", "tgz"),
+                    p => {
+                        return Err(format!(
+                            "ONNX Runtime {ORT} has no download for {p}: build it from source \
+                             (https://onnxruntime.ai/docs/build/inferencing) with --build_shared_lib and set ORT_LIB_DIR \
+                             to the folder with the library"
+                        ))
+                    }
+                };
+                let url = format!("https://github.com/microsoft/onnxruntime/releases/download/v{ORT}/{name}-{ORT}.{ext}");
+                unpack(&url, &tmp.join("ort"))?.join(format!("{name}-{ORT}")).join("lib")
+            }
         };
-        let url = format!("https://github.com/microsoft/onnxruntime/releases/download/v{ORT}/{name}-{ORT}.{ext}");
-        let lib = unpack(&url, &tmp.join("ort"))?.join(format!("{name}-{ORT}")).join("lib");
         for f in &ort_files {
-            // the .so and .dylib are versioned files behind symbolic links: copy the real one
+            // the .so and .dylib are versioned files behind symbolic links (libonnxruntime.so.1.30.0,
+            // libonnxruntime.1.30.0.dylib): copy the real one, and never onnxruntime_providers_shared for onnxruntime
+            let (stem, ext) = f.rsplit_once('.').unwrap();
             let src = fs::read_dir(&lib)
-                .map_err(|e| e.to_string())?
+                .map_err(|e| format!("{}: {e}", lib.display()))?
                 .filter_map(|e| e.ok().map(|e| e.path()))
-                .filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with(f.trim_end_matches(".so").trim_end_matches(".dylib").trim_end_matches(".dll"))))
+                .filter(|p| p.file_name().is_some_and(|n| {
+                    let n = n.to_string_lossy();
+                    n.starts_with(&format!("{stem}.")) && n.split('.').any(|part| part == ext)
+                }))
                 .filter(|p| !p.is_symlink() && p.is_file())
                 .max_by_key(|p| p.file_name().map(|n| n.len()))
-                .ok_or(format!("{f} is not in the ONNX Runtime download"))?;
+                .ok_or(format!("{f} is not in {}", lib.display()))?;
             fs::copy(&src, dir.join(f)).map_err(|e| e.to_string())?;
         }
         say(&format!("ONNX Runtime {ORT} is in {}", dir.display()));
@@ -139,10 +159,12 @@ fn runtime() -> Result<Vec<PathBuf>, String> {
     if !dir.join(pdfium_file).is_file() {
         let name = match platform().as_str() {
             "windows-x64" => "pdfium-win-x64",
+            "windows-arm64" => "pdfium-win-arm64",
             "macos-arm64" => "pdfium-mac-arm64",
             "macos-x64" => "pdfium-mac-x64",
+            "linux-x64" => "pdfium-linux-x64",
             "linux-arm64" => "pdfium-linux-arm64",
-            _ => "pdfium-linux-x64",
+            p => return Err(format!("PDFium has no download for {p}")),
         };
         let url = format!("https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F{PDFIUM}/{name}.tgz");
         let out = unpack(&url, &tmp.join("pdfium"))?;
@@ -227,12 +249,21 @@ fn package_windows(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> 
     for lib in runtime()? {
         fs::copy(&lib, bin.join(lib.file_name().unwrap())).map_err(|e| e.to_string())?;
     }
-    let msys = PathBuf::from(env::var("MSYS2_UCRT64").unwrap_or_else(|_| "C:/msys64/ucrt64".into()));
+    // MSYS2's GTK: the UCRT64 environment on x64, CLANGARM64 on ARM64
+    let arm = env::consts::ARCH == "aarch64";
+    let msys = PathBuf::from(env::var("MSYS2_PREFIX").unwrap_or_else(|_| {
+        if arm { "C:/msys64/clangarm64".into() } else { "C:/msys64/ucrt64".into() }
+    }));
     if !msys.join("bin").is_dir() {
-        return Err(format!("GTK is not at {} (set MSYS2_UCRT64)", msys.display()));
+        return Err(format!("GTK is not at {} (set MSYS2_PREFIX)", msys.display()));
     }
-    // every DLL the program needs, found by following the import tables
-    let objdump = msys.join("bin").join("objdump.exe");
+    // every DLL the program needs, found by following the import tables (the LLVM-based environments
+    // have llvm-objdump instead of binutils' objdump; both print "DLL Name:")
+    let objdump = ["objdump.exe", "llvm-objdump.exe"]
+        .iter()
+        .map(|t| msys.join("bin").join(t))
+        .find(|p| p.is_file())
+        .ok_or(format!("objdump is not in {}", msys.join("bin").display()))?;
     let mut todo = vec![bin.join("Rewrite.exe")];
     let mut seen = BTreeSet::new();
     while let Some(f) = todo.pop() {
@@ -278,6 +309,7 @@ fn package_windows(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> 
     write_ico(&icon)?;
     sh(Command::new(iscc)
         .arg(format!("/DVersion={}", version()))
+        .arg(format!("/DArch={}", if arm { "arm64" } else { "x64" }))
         .arg(format!("/DSrc={}", stage.display()))
         .arg(format!("/DOutDir={}", dist.display()))
         .arg(format!("/DIcon={}", icon.display()))
@@ -435,6 +467,12 @@ fn package_macos(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
     copy_license(&resources)?;
     write_icns(&resources.join("rewrite.icns"))?;
     let v = version();
+    // the oldest macOS the bundle runs on is the newest minimum among its binaries (Homebrew builds each
+    // library for the macOS it was built on)
+    let mut binaries = vec![main.clone()];
+    binaries.extend(walk(&frameworks));
+    let min_os = min_macos(&binaries);
+    say(&format!("needs macOS {min_os} or later"));
     fs::write(
         contents.join("Info.plist"),
         format!(
@@ -451,7 +489,7 @@ fn package_macos(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
 <key>CFBundleVersion</key><string>{v}</string>
 <key>NSHumanReadableCopyright</key><string>© Samrat Dutta</string>
 <key>NSHighResolutionCapable</key><true/>
-<key>LSMinimumSystemVersion</key><string>11.0</string>
+<key>LSMinimumSystemVersion</key><string>{min_os}</string>
 </dict></plist>
 "#
         ),
@@ -471,6 +509,31 @@ fn package_macos(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
     sh(Command::new("hdiutil").args(["create", "-volname", "Rewrite", "-format", "UDZO", "-srcfolder"]).arg(&dmg_dir).arg(&out))?;
     say(&format!("installer is in {}", dist.display()));
     Ok(())
+}
+
+/// The highest "minos" (LC_BUILD_VERSION) or "version" (LC_VERSION_MIN_MACOSX) among Mach-O files.
+fn min_macos(files: &[PathBuf]) -> String {
+    let parse = |s: &str| s.split('.').map(|p| p.parse::<u32>().unwrap_or(0)).collect::<Vec<_>>();
+    let mut best = "11.0".to_string();
+    for f in files {
+        let Ok(out) = output(Command::new("otool").arg("-l").arg(f)) else { continue }; // not a Mach-O file
+        let mut key = None;
+        for line in out.lines().map(str::trim) {
+            match line {
+                "cmd LC_BUILD_VERSION" => key = Some("minos "),
+                "cmd LC_VERSION_MIN_MACOSX" => key = Some("version "),
+                _ => {
+                    if let Some(v) = key.and_then(|k| line.strip_prefix(k)) {
+                        if parse(v) > parse(&best) {
+                            best = v.to_string();
+                        }
+                        key = None;
+                    }
+                }
+            }
+        }
+    }
+    best
 }
 
 /// Linux: a .deb that uses the system's GTK, and an AppImage that carries its own (linuxdeploy's GTK plugin).

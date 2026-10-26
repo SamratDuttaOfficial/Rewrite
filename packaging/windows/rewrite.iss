@@ -1,7 +1,10 @@
 ; Inno Setup script for Rewrite. Normally compiled by  cargo xtask package,
-; which passes /DVersion, /DSrc, /DOutDir and /DIcon. The program is in bin\, next to GTK's DLLs.
+; which passes /DVersion, /DArch, /DSrc, /DOutDir and /DIcon. The program is in bin\, next to GTK's DLLs.
 #ifndef Version
   #define Version "2.0.1"
+#endif
+#ifndef Arch
+  #define Arch "x64"
 #endif
 #ifndef Src
   #define Src "..\..\build\app\Rewrite"
@@ -28,10 +31,16 @@ DefaultGroupName=Rewrite
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+#if Arch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+OutputBaseFilename=Rewrite-{#Version}-Windows-arm64-Setup
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputDir={#OutDir}
 OutputBaseFilename=Rewrite-{#Version}-Windows-Setup
+#endif
+OutputDir={#OutDir}
 SetupIconFile={#Icon}
 UninstallDisplayIcon={app}\bin\Rewrite.exe
 UninstallDisplayName=Rewrite
