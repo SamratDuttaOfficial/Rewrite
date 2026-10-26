@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="rewrite/assets/icon256.png" width="88" alt="Rewrite icon">
+  <img src="assets/icons/hicolor/256x256/apps/rewrite.png" width="88" alt="Rewrite icon">
 </p>
 
 <h1 align="center">Rewrite</h1>
