@@ -7,16 +7,13 @@ body:
     attributes:
       value: |
         Thanks for building Rewrite. Once the build is checked, the maintainer adds the `approved` label and the
-        download appears on https://samratduttaofficial.github.io/rewrite/. Build from an unmodified release tag.
+        download appears on https://samratduttaofficial.github.io/Rewrite/. Build from an unmodified release tag.
   - type: dropdown
     id: platform
     attributes:
       label: Platform
       options:
-        - macOS, Intel
-        - Linux on ARM
         - Fedora / openSUSE .rpm
-        - Windows on ARM, native
         - Other (say which in the notes)
     validations:
       required: true

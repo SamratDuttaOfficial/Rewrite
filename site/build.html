@@ -4,67 +4,65 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Build Rewrite for your system</title>
-<meta name="description" content="Rewrite has no installer for this system yet. Build one from source and send it in so others can download it.">
+<meta name="description" content="No installer for this system yet. Build one and send it in.">
 <link rel="icon" href="img/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
+<script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
 <body>
 
 <header class="top">
   <div class="wrap">
     <a class="brand" href="./"><img src="img/icon.svg" alt="">Rewrite</a>
-    <nav><a href="./#download">All downloads</a><a href="https://github.com/SamratDuttaOfficial/rewrite">Source</a></nav>
-    <a class="btn get" href="./#download">Back to downloads</a>
+    <div class="top-tools">
+      <button class="iconbtn" id="theme" type="button" title="Switch theme" aria-label="Switch theme"><svg class="ic"><use href="icons.svg#moon"/></svg></button>
+      <a class="iconbtn" href="https://github.com/SamratDuttaOfficial/Rewrite" title="Source code" aria-label="Source code"><svg class="ic"><use href="icons.svg#code"/></svg></a>
+      <a class="btn" href="./#download"><svg class="ic"><use href="icons.svg#download"/></svg>All downloads</a>
+    </div>
   </div>
 </header>
 
 <main id="build">
   <div class="wrap" style="padding-top: 48px; padding-bottom: 40px">
-    <h1>Rewrite for <span data-name></span></h1>
+    <h1><span data-name></span></h1>
     <p class="sub" data-sys></p>
-    <h2 style="margin-top: 36px; font-size: 22px">Builds people have sent in</h2>
+    <h2 style="margin-top: 32px; font-size: 22px">Community builds</h2>
     <div data-list><p class="sub">Loading...</p></div>
   </div>
 
   <section class="band">
     <div class="wrap">
-      <h2>Build it and send it in</h2>
-      <p class="sub">There is no official installer for <span data-name></span> yet. If you have one of these machines,
-        you can make it. Once your build is checked, it is listed on this page and in the download list for everyone.</p>
+      <h2>Build it, send it in</h2>
+      <p class="sub">Checked builds appear here and in the download list.</p>
       <ol class="steps">
-        <li><b>Install Rust and GTK 4.</b> Rust comes from <a href="https://rustup.rs">rustup.rs</a>.
+        <li><b>Install Rust and GTK 4</b> (<a href="https://rustup.rs">rustup.rs</a>)
           <pre data-setup></pre></li>
-        <li><b>Get the source of the latest release.</b>
-          <pre>git clone https://github.com/SamratDuttaOfficial/rewrite
-cd rewrite
+        <li><b>Get the latest release</b>
+          <pre>git clone https://github.com/SamratDuttaOfficial/Rewrite
+cd Rewrite
 git checkout $(git describe --tags --abbrev=0)</pre></li>
-        <li><b>Run it once.</b> The first run downloads ONNX Runtime and PDFium for your system.
-          <pre>cargo xtask run</pre></li>
-        <li><b>Build the installer.</b> It is written to <code>dist/installers/</code>, named like
-          <code data-out></code>.
-          <pre>cargo xtask package</pre>
-          If the build script does not know your system yet, a pull request that teaches it is as welcome as the build.</li>
-        <li><b>Put the file online.</b> Fork the repository on GitHub, make a release in your fork and attach the
-          installer. Then note its SHA-256:
-          <pre>sha256sum FILE              (Linux)
-shasum -a 256 FILE          (macOS)
-certutil -hashfile FILE SHA256   (Windows)</pre></li>
-        <li><b>Send it in.</b> The form asks for the link, the SHA-256 and the commands you used.
-          <p style="margin-top: 12px"><a class="btn blue" data-submit href="https://github.com/SamratDuttaOfficial/rewrite/issues/new?template=community-build.yml">Send in a build</a></p></li>
+        <li><b>Build the installer</b> into <code>dist/installers/</code>, e.g. <code data-out></code>
+          <pre>cargo xtask package</pre></li>
+        <li><b>Publish it</b> as a release in your fork and note its SHA-256
+          <pre>sha256sum FILE</pre></li>
+        <li><b>Send it in</b>
+          <p style="margin-top: 10px"><a class="btn blue" data-submit href="https://github.com/SamratDuttaOfficial/Rewrite/issues/new?template=community-build.yml"><svg class="ic"><use href="icons.svg#export"/></svg>Send in a build</a></p></li>
       </ol>
-      <p class="warn">Build from an unmodified release. Builds that change the code, add other software or cannot be
-        repeated from the steps given are not listed.</p>
+      <p class="warn">Unmodified releases only. Builds that change the code or add other software are not listed.</p>
     </div>
   </section>
 </main>
 
 <footer>
   <div class="wrap">
-    <span>Rewrite by Samrat Dutta, <a href="https://github.com/samratduttaofficial">github.com/samratduttaofficial</a></span>
-    <span><a href="./">Home</a> &nbsp; <a href="https://github.com/SamratDuttaOfficial/rewrite/issues">Report a problem</a></span>
+    <span>Rewrite by Samrat Dutta</span>
+    <span class="foot-icons">
+      <a class="iconbtn" href="./" title="Home" aria-label="Home"><svg class="ic"><use href="icons.svg#file"/></svg></a>
+      <a class="iconbtn" href="https://github.com/SamratDuttaOfficial/Rewrite/issues" title="Report a problem" aria-label="Report a problem"><svg class="ic"><use href="icons.svg#note"/></svg></a>
+    </span>
   </div>
 </footer>
 

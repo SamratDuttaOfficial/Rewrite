@@ -2,30 +2,26 @@
 // Official installers come from the latest GitHub release. Systems without one link to build.html, which lists
 // community builds the maintainer has approved (issues labelled "community-build" and "approved").
 
-const REPO = "SamratDuttaOfficial/rewrite";
+const REPO = "SamratDuttaOfficial/Rewrite";
 const FALLBACK_TAG = "v2.0.1";
 
+// An official row whose file is not in the latest release is shown as a build row, so no button leads to a
+// missing file. Rows without "match" are only ever built by the community.
 const PLATFORMS = [
-  { id: "win-x64", name: "Windows", sys: "Windows 10 and 11, 64-bit. Also runs on Windows on ARM.", match: /Windows-Setup\.exe$/, file: "Rewrite-2.0.1-Windows-Setup.exe", os: "windows" },
-  { id: "mac-arm64", name: "macOS, Apple Silicon", sys: "macOS 11 or later on M-series Macs.", match: /macOS-arm64\.dmg$/, file: "Rewrite-2.0.1-macOS-arm64.dmg", os: "mac" },
-  { id: "linux-deb", name: "Debian / Ubuntu", sys: "Debian 13, Ubuntu 24.04 or later, 64-bit.", match: /_amd64\.deb$/, file: "rewrite_2.0.1_amd64.deb", os: "linux" },
-  { id: "linux-appimage", name: "Linux AppImage", sys: "Fedora, Arch, openSUSE and others, 64-bit.", match: /x86_64\.AppImage$/, file: "Rewrite-2.0.1-x86_64.AppImage", os: "linux" },
-  // Not built yet: these go to the build page.
-  { id: "mac-x64", name: "macOS, Intel", sys: "Macs with an Intel processor.", os: "mac",
-    setup: "brew install gtk4 pkg-config rustup\nrustup-init -y", out: "Rewrite-<version>-macOS-x64.dmg" },
-  { id: "linux-arm64", name: "Linux on ARM", sys: "Raspberry Pi 5, ARM laptops, aarch64.", os: "linux",
-    setup: "sudo apt install libgtk-4-dev libfuse2 file build-essential curl\ncurl https://sh.rustup.rs -sSf | sh", out: "rewrite_<version>_arm64.deb, Rewrite-<version>-aarch64.AppImage" },
-  { id: "linux-rpm", name: "Fedora / openSUSE .rpm", sys: "A native .rpm. The AppImage works there today.", os: "linux",
+  { id: "win-x64", name: "Windows", sys: "Windows 10, 11 · Intel, AMD", match: /Windows-Setup\.exe$/, os: "windows", cpu: "x86" },
+  { id: "win-arm64", name: "Windows on ARM", sys: "Windows 11 · Snapdragon", match: /Windows-arm64-Setup\.exe$/, os: "windows", cpu: "arm" },
+  { id: "mac-arm64", name: "macOS, Apple Silicon", sys: "macOS 15+ · M-series", match: /macOS-arm64\.dmg$/, os: "mac", cpu: "arm" },
+  { id: "mac-x64", name: "macOS, Intel", sys: "macOS 15+ · Intel", match: /macOS-x86_64\.dmg$/, os: "mac", cpu: "x86" },
+  { id: "linux-deb", name: "Debian / Ubuntu", sys: "Ubuntu 24.04+, Debian 13+", match: /_amd64\.deb$/, os: "linux", cpu: "x86" },
+  { id: "linux-deb-arm64", name: "Debian / Ubuntu, ARM", sys: "Raspberry Pi 5, ARM laptops", match: /_arm64\.deb$/, os: "linux", cpu: "arm" },
+  { id: "linux-appimage", name: "Linux AppImage", sys: "Any distribution · x86_64", match: /x86_64\.AppImage$/, os: "linux", cpu: "x86" },
+  { id: "linux-appimage-arm64", name: "Linux AppImage, ARM", sys: "Any distribution · aarch64", match: /aarch64\.AppImage$/, os: "linux", cpu: "arm" },
+  { id: "linux-rpm", name: "Fedora / openSUSE .rpm", sys: "The AppImage works there today", os: "linux",
     setup: "sudo dnf install gtk4-devel gcc rpm-build curl\ncurl https://sh.rustup.rs -sSf | sh", out: "rewrite-<version>.x86_64.rpm" },
-  { id: "win-arm64", name: "Windows on ARM, native", sys: "Snapdragon laptops. The Windows installer already runs there.", os: "windows",
-    setup: "Install MSYS2 from msys2.org, open the CLANGARM64 shell, then:\npacman -S mingw-w64-clang-aarch64-gtk4 mingw-w64-clang-aarch64-pkgconf mingw-w64-clang-aarch64-rust", out: "Rewrite-<version>-Windows-arm64-Setup.exe" },
 ];
 const byId = Object.fromEntries(PLATFORMS.map(p => [p.id, p]));
 
-const ICON = {
-  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 10v7m-3-3 3 3 3-3"/></svg>',
-  build: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M6 3h8l4 4v14H6z" stroke-dasharray="2.5 2.5"/><path d="M9 14h6M12 11v6"/></svg>',
-};
+const icon = name => `<svg class="ic"><use href="icons.svg#${name}"/></svg>`;
 
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
 function fmtSize(b) { return b ? `${Math.round(b / 1e6)} MB` : ""; }
@@ -36,6 +32,19 @@ function guessOS() {
   if (/Macintosh|Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua)) return "mac";
   if (/Linux|X11/.test(ua) && !/Android/.test(ua)) return "linux";
   return "";
+}
+
+// "arm" or "x86" where the browser says (Chromium's client hints, or the user agent on Linux), otherwise the
+// usual one: x86 on Windows and Linux, Apple Silicon on a Mac
+async function guessCPU(os) {
+  try {
+    if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+      const v = await navigator.userAgentData.getHighEntropyValues(["architecture"]);
+      if (v.architecture) return v.architecture === "arm" ? "arm" : "x86";
+    }
+  } catch {}
+  if (/aarch64|arm64|armv8/i.test(navigator.userAgent)) return "arm";
+  return os === "mac" ? "arm" : "x86";
 }
 
 async function latestRelease() {
@@ -67,30 +76,32 @@ async function renderDownloads() {
   const list = document.getElementById("downloads");
   if (!list) return;
   const os = guessOS();
-  const osName = { windows: "Windows", mac: "macOS", linux: "Linux" }[os];
-  if (osName) document.getElementById("os-name").textContent = osName;
-  const [rel, cbs] = await Promise.all([latestRelease(), communityBuilds()]);
+  const [cpu, rel, cbs] = await Promise.all([guessCPU(os), latestRelease(), communityBuilds()]);
   const tag = rel ? rel.tag_name : FALLBACK_TAG;
   document.getElementById("version").textContent = tag.replace(/^v/, "");
-  let marked = false;
+  const assetOf = p => p.match && rel && rel.assets.find(x => p.match.test(x.name));
+  const ready = PLATFORMS.filter(p => assetOf(p));
+  const mine = ready.find(p => p.os === os && p.cpu === cpu) || ready.find(p => p.os === os);
+  if (mine) {
+    document.getElementById("os-name").textContent = mine.name;
+    document.querySelector(".side .btn").href = assetOf(mine).browser_download_url;
+  }
   const rows = PLATFORMS.map(p => {
-    if (p.match) {
-      const a = rel && rel.assets.find(x => p.match.test(x.name));
-      const url = a ? a.browser_download_url : `https://github.com/${REPO}/releases/download/${FALLBACK_TAG}/${p.file}`;
-      const mine = !marked && os && p.os === os;
-      if (mine) marked = true;
-      return `<div class="row${mine ? " mine" : ""}"><span class="ico">${ICON.file}</span>
-        <span class="fname">${esc(a ? a.name : p.file)}</span>
-        <span class="sys"><b>${esc(p.name)}</b>${esc(p.sys)}${mine ? '<span class="yours">Matches this computer</span>' : ""}</span>
-        <span class="size">${fmtSize(a && a.size)}</span>
-        <span class="act"><a class="btn${mine ? " blue" : ""}" href="${url}">Download</a></span></div>`;
+    const a = assetOf(p);
+    if (a) {
+      const me = p === mine;
+      return `<div class="row${me ? " mine" : ""}"><span class="ico">${icon("download")}</span>
+        <span class="fname">${esc(a.name)}</span>
+        <span class="sys"><b>${esc(p.name)}</b>${esc(p.sys)}</span>
+        <span class="size">${fmtSize(a.size)}</span>
+        <span class="act"><a class="btn${me ? " blue" : ""}" href="${a.browser_download_url}">${icon("download")}Download</a></span></div>`;
     }
     const n = (cbs || []).filter(c => c.platform === p.id).length;
-    return `<div class="row todo"><span class="ico">${ICON.build}</span>
+    return `<div class="row todo"><span class="ico">${icon("build")}</span>
       <span class="fname">${n ? `${n} community build${n > 1 ? "s" : ""}` : "Not built yet"}</span>
       <span class="sys"><b>${esc(p.name)}</b>${esc(p.sys)}</span>
       <span class="size"></span>
-      <span class="act"><a class="btn" href="build.html?p=${p.id}">${n ? "See builds" : "Build it"}</a></span></div>`;
+      <span class="act"><a class="btn" href="build.html?p=${p.id}">${icon(n ? "next" : "build")}${n ? "See builds" : "Build it"}</a></span></div>`;
   });
   list.innerHTML = `<div class="hdr"><span></span><span>File</span><span>System</span><span style="text-align:right">Size</span><span></span></div>` + rows.join("");
 }
@@ -100,7 +111,7 @@ async function renderDownloads() {
 const DOC = [
   ["In today's fast-paced digital landscape, ", { k: "wordy", id: "p1", t: "it is important to note that" }, " many people rely on cloud services for everyday writing."],
   [{ k: "sent", id: "s2", t: ["It is ", { k: "word", id: "w1", t: "fast" }, ", it keeps your drafts private, and it works without an internet connection."] },
-    " Small models make mistakes, so you should always read ", { k: "spell", id: "sp", t: "evrey" }, " result carefully."],
+    " Even good tools make mistakes, so read ", { k: "spell", id: "sp", t: "evrey" }, " result carefully."],
 ];
 const SUG = {
   p1: { head: "Or reword the whole phrase", what: "it is important to note that", alts: [["note that", 92, "phrase", "meaning 99%"], ["it is crucial to note that", 85, "synonym"], ["it is critical to note that", 85, "synonym", "meaning 100%"]] },
@@ -115,10 +126,9 @@ const AUTO = [
   "The fast-paced digital world places a significant amount of writing on cloud services, which is a must for many people.",
   "Despite being offline and speedy, it ensures your drafts are confidential.",
 ];
-const HINT = `<div class="head">Get started</div><p class="hint" style="margin-top:6px">
-  Click the <b>highlighted phrase</b> to reword it, the dotted word <b>fast</b> for alternatives, the red
-  squiggle to fix the spelling, or the <b>second sentence</b> to rephrase all of it.<br><br>
-  Or press <b>Auto-rewrite</b> to go through the whole text.</p>`;
+const HINT = `<div class="head">Try it</div><p class="hint" style="margin-top:6px">
+  Click the <b>highlight</b>, the word <b>fast</b>, the <b>squiggle</b> or the <b>second sentence</b>.
+  Or press <b>Auto-rewrite</b>.</p>`;
 
 let state;
 function resetDemo() { state = { text: {}, changed: new Set(), auto: false }; drawDoc(); showPanel(null); }
@@ -132,7 +142,7 @@ function piece(x) {
 function drawDoc() {
   const doc = document.getElementById("doc");
   if (state.auto) {
-    doc.innerHTML = `<p><span class="changed">${esc(AUTO[0])}</span></p><p><span class="changed">${esc(AUTO[1])}</span> Small models make mistakes, so you should always read every result carefully.</p>`;
+    doc.innerHTML = `<p><span class="changed">${esc(AUTO[0])}</span></p><p><span class="changed">${esc(AUTO[1])}</span> Even good tools make mistakes, so read every result carefully.</p>`;
     return;
   }
   doc.innerHTML = DOC.map(p => `<p>${p.map(piece).join("")}</p>`).join("");
@@ -178,12 +188,25 @@ function initDemo() {
   document.getElementById("rw").addEventListener("click", () => {
     state.auto = true; drawDoc();
     document.getElementById("panel").innerHTML = `<div class="head">Auto-rewrite</div><p class="hint" style="margin-top:6px">
-      Two sentences rewritten and the spelling fixed. In the app you can now step through each change and accept or
-      reject it.</p>`;
+      Done. In the app, accept or reject each change.</p>`;
     document.getElementById("reset").hidden = false;
   });
   document.getElementById("reset").addEventListener("click", () => {
     DOC[1][0] = JSON.parse(original); document.getElementById("reset").hidden = true; resetDemo();
+  });
+}
+
+function initTheme() {
+  const btn = document.getElementById("theme");
+  if (!btn) return;
+  const root = document.documentElement;
+  const dark = () => (root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches);
+  const show = () => btn.querySelector("use").setAttribute("href", `icons.svg#${dark() ? "sun" : "moon"}`);
+  show();
+  btn.addEventListener("click", () => {
+    root.dataset.theme = dark() ? "light" : "dark";
+    try { localStorage.setItem("theme", root.dataset.theme); } catch {}
+    show();
   });
 }
 
@@ -219,13 +242,14 @@ async function renderBuildPage() {
   list.innerHTML = mine.length
     ? `<div class="cblist">${mine.map(c => `<div>
         <span>Rewrite ${esc(c.version)}, built by <a href="https://github.com/${esc(c.by)}">${esc(c.by)}</a> (<a href="${esc(c.issue)}">how it was built</a>)</span>
-        <a class="btn blue" href="${esc(c.url)}">Download</a>
+        <a class="btn blue" href="${esc(c.url)}">${icon("download")}Download</a>
         ${c.sha ? `<span class="sha">SHA-256 ${esc(c.sha)}</span>` : ""}</div>`).join("")}</div>
-      <p class="warn">Community builds are made by other people, not by the developer. Check the SHA-256 after downloading.</p>`
-    : `<p>Nobody has sent in a build for ${esc(p.name)} yet.</p>`;
+      <p class="warn">Made by other people. Check the SHA-256.</p>`
+    : `<p class="sub">None yet.</p>`;
 }
 
 renderDownloads();
 initDemo();
+initTheme();
 initTabs();
 renderBuildPage();
