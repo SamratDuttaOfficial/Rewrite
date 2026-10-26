@@ -8,75 +8,63 @@
 <link rel="icon" href="img/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header class="bar">
+<header class="top">
   <div class="wrap">
     <a class="brand" href="./"><img src="img/icon.svg" alt="">Rewrite</a>
-    <nav>
-      <a href="./#download">All downloads</a>
-      <a href="https://github.com/SamratDuttaOfficial/rewrite">GitHub</a>
-    </nav>
+    <nav><a href="./#download">All downloads</a><a href="https://github.com/SamratDuttaOfficial/rewrite">Source</a></nav>
+    <a class="btn get" href="./#download">Back to downloads</a>
   </div>
 </header>
 
 <main id="build">
-  <div class="wrap" style="padding-top: 56px; padding-bottom: 24px">
-    <div class="kicker red">Needs a build</div>
-    <h1 style="margin: 16px 0 18px"><span data-name></span></h1>
-    <p class="lead" data-sys></p>
+  <div class="wrap" style="padding-top: 48px; padding-bottom: 40px">
+    <h1>Rewrite for <span data-name></span></h1>
+    <p class="sub" data-sys></p>
+    <h2 style="margin-top: 36px; font-size: 22px">Builds people have sent in</h2>
+    <div data-list><p class="sub">Loading...</p></div>
   </div>
 
-  <section>
+  <section class="band">
     <div class="wrap">
-      <div class="kicker">Community builds</div>
-      <h2>Ready to download</h2>
-      <div data-list><p class="meta">Loading...</p></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
-      <div class="kicker">Build it yourself</div>
-      <h2>Make an installer for <span data-name-inline></span>.</h2>
-      <p class="lead">Rewrite is written in Rust with GTK 4. If you have a machine with this system, these steps
-        build an installer. Then send it in, and once it is checked it is listed here for everyone.</p>
+      <h2>Build it and send it in</h2>
+      <p class="sub">There is no official installer for <span data-name></span> yet. If you have one of these machines,
+        you can make it. Once your build is checked, it is listed on this page and in the download list for everyone.</p>
       <ol class="steps">
-        <li><strong>Install the tools.</strong> Rust from <a href="https://rustup.rs">rustup.rs</a> and GTK 4's development files:
+        <li><b>Install Rust and GTK 4.</b> Rust comes from <a href="https://rustup.rs">rustup.rs</a>.
           <pre data-setup></pre></li>
-        <li><strong>Get the source of the latest release.</strong>
+        <li><b>Get the source of the latest release.</b>
           <pre>git clone https://github.com/SamratDuttaOfficial/rewrite
 cd rewrite
 git checkout $(git describe --tags --abbrev=0)</pre></li>
-        <li><strong>Check that it runs.</strong> The first run downloads ONNX Runtime and PDFium for your system.
+        <li><b>Run it once.</b> The first run downloads ONNX Runtime and PDFium for your system.
           <pre>cargo xtask run</pre></li>
-        <li><strong>Build the installer.</strong> It lands in <code>dist/installers/</code>. Expected name:
-          <pre data-out></pre>
+        <li><b>Build the installer.</b> It is written to <code>dist/installers/</code>, named like
+          <code data-out></code>.
           <pre>cargo xtask package</pre>
-          If <code>cargo xtask package</code> does not support your system yet, a pull request that adds it is just
-          as welcome as the build.</li>
-        <li><strong>Publish the file.</strong> Fork the repository on GitHub, create a release in your fork, and
-          attach the installer. Note its SHA-256:
-          <pre>sha256sum dist/installers/*      # Linux
-shasum -a 256 dist/installers/*  # macOS
-certutil -hashfile FILE SHA256   # Windows</pre></li>
-        <li><strong>Send it in.</strong> Fill in the form with the download link, the SHA-256 and the commands you
-          used. After it is checked it appears on this page and on the download list.
-          <p style="margin-top: 14px"><a class="btn primary" data-submit href="https://github.com/SamratDuttaOfficial/rewrite/issues/new?template=community-build.yml">Submit your build</a></p></li>
+          If the build script does not know your system yet, a pull request that teaches it is as welcome as the build.</li>
+        <li><b>Put the file online.</b> Fork the repository on GitHub, make a release in your fork and attach the
+          installer. Then note its SHA-256:
+          <pre>sha256sum FILE              (Linux)
+shasum -a 256 FILE          (macOS)
+certutil -hashfile FILE SHA256   (Windows)</pre></li>
+        <li><b>Send it in.</b> The form asks for the link, the SHA-256 and the commands you used.
+          <p style="margin-top: 12px"><a class="btn blue" data-submit href="https://github.com/SamratDuttaOfficial/rewrite/issues/new?template=community-build.yml">Send in a build</a></p></li>
       </ol>
-      <p class="note">Please build from an unmodified release tag. Builds that change the code, bundle extra
-        software or cannot be reproduced from the steps given are not approved.</p>
+      <p class="warn">Build from an unmodified release. Builds that change the code, add other software or cannot be
+        repeated from the steps given are not listed.</p>
     </div>
   </section>
 </main>
 
 <footer>
   <div class="wrap">
-    <span>Rewrite by Samrat Dutta · <a href="https://github.com/samratduttaofficial">github.com/samratduttaofficial</a></span>
-    <span><a href="./">Home</a> · <a href="https://github.com/SamratDuttaOfficial/rewrite/issues">Report a problem</a></span>
+    <span>Rewrite by Samrat Dutta, <a href="https://github.com/samratduttaofficial">github.com/samratduttaofficial</a></span>
+    <span><a href="./">Home</a> &nbsp; <a href="https://github.com/SamratDuttaOfficial/rewrite/issues">Report a problem</a></span>
   </div>
 </footer>
 

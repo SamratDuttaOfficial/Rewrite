@@ -13,10 +13,10 @@ body:
     attributes:
       label: Platform
       options:
-        - macOS (Intel)
+        - macOS, Intel
         - Linux on ARM
-        - Fedora / openSUSE (.rpm)
-        - Windows on ARM (native)
+        - Fedora / openSUSE .rpm
+        - Windows on ARM, native
         - Other (say which in the notes)
     validations:
       required: true

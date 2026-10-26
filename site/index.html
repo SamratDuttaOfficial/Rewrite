@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Literata:opsz,wght@7..72,400&display=swap">
 <link rel="stylesheet" href="style.css">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Rewrite","operatingSystem":"Windows, macOS, Linux",
@@ -24,161 +24,161 @@
 </head>
 <body>
 
-<header class="bar">
+<header class="top">
   <div class="wrap">
     <a class="brand" href="./"><img src="img/icon.svg" alt="">Rewrite</a>
     <nav>
-      <a class="opt" href="#humanize">Rewriter</a>
-      <a class="opt" href="#features">Features</a>
-      <a class="opt" href="#faq">FAQ</a>
       <a href="#download">Download</a>
-      <a href="https://github.com/SamratDuttaOfficial/rewrite">GitHub</a>
+      <a href="#documents">Documents</a>
+      <a href="#questions">Questions</a>
+      <a href="https://github.com/SamratDuttaOfficial/rewrite">Source</a>
     </nav>
+    <a class="btn blue get" href="#download">Download</a>
   </div>
 </header>
 
 <main>
-  <div class="wrap hero">
-    <div>
-      <div class="kicker">Free · Windows · macOS · Linux</div>
-      <h1><del>Utilize</del> <ins>Use</ins> a writing tool that never goes online.</h1>
-      <p class="lead">Rewrite rephrases words, phrases and whole sentences with small models on your own computer, checks
-        spelling and grammar, and opens Word, LaTeX and PDF files. No account, no word limit, nothing uploaded.</p>
-      <div class="actions">
-        <a class="btn primary" href="#download">Download free <small>v<span id="version">2.0.1</span></small></a>
-        <a class="btn" href="https://github.com/SamratDuttaOfficial/rewrite">Source on GitHub</a>
+  <div class="wrap">
+    <div class="intro">
+      <div>
+        <h1>Rewrite text on your own computer.</h1>
+        <p>A free editor that rephrases words and sentences with small local models, checks spelling and grammar,
+          and opens Word, LaTeX and PDF files. Turn an AI draft into text that reads as human and passes AI detectors
+          and plagiarism checkers. No account, no word limit, nothing uploaded.</p>
       </div>
-      <p class="meta">Installers are 19 to 54 MB, plus a one-time model download of about 400 MB inside the app.</p>
+      <div class="side">
+        <a class="btn blue" href="#download">Download for <span id="os-name">your computer</span></a>
+        <span class="small">Version <span id="version">2.0.1</span> · Windows, macOS, Linux</span>
+      </div>
     </div>
-    <img class="shot" src="img/03-sentence-rephrase.png" width="1428" height="889"
-         alt="Rewrite with a sentence selected and five rewrites of it in the side panel, each with a meaning score">
+
+    <!-- A working copy of the editor: click the highlighted text, or press Auto-rewrite -->
+    <div class="win" id="demo" aria-label="Interactive example of the Rewrite editor">
+      <div class="win-title">
+        <img src="img/icon.svg" alt="">
+        <div class="menu"><span>File</span><span>Edit</span><span>Insert</span><span>Format</span><span>Rewrite</span><span>View</span></div>
+        <span class="name">essay.md — Rewrite</span>
+        <div class="ctl"><span>&#8211;</span><span>&#9633;</span><span>&#10005;</span></div>
+      </div>
+      <div class="win-tools">
+        <button class="rw" id="rw" type="button">Auto-rewrite</button>
+        <button class="reset" id="reset" type="button" hidden>Undo all</button>
+      </div>
+      <div class="win-body">
+        <div class="doc" id="doc"></div>
+        <aside class="side-panel" id="panel"></aside>
+      </div>
+      <div class="win-status"><span>essay.md</span><span>Markdown</span><span class="mode">Smart mode</span></div>
+    </div>
   </div>
 
-  <section id="download">
+  <section class="band" id="download">
     <div class="wrap">
-      <div class="kicker red">Download</div>
-      <h2>Pick your system.</h2>
-      <p class="lead">Installers come straight from the GitHub release. Systems marked "needs a build" have no
-        installer yet: anyone can build one and send it in, and approved builds appear here.</p>
-      <div class="dl" id="downloads">
-        <div><h3>Windows</h3><div class="sys">Windows 10 and 11, 64-bit.</div>
-          <a class="btn" href="https://github.com/SamratDuttaOfficial/rewrite/releases/download/v2.0.1/Rewrite-2.0.1-Windows-Setup.exe">Download</a></div>
-        <div><h3>macOS (Apple Silicon)</h3><div class="sys">macOS 11 or later.</div>
-          <a class="btn" href="https://github.com/SamratDuttaOfficial/rewrite/releases/download/v2.0.1/Rewrite-2.0.1-macOS-arm64.dmg">Download</a></div>
-        <div><h3>Debian / Ubuntu</h3><div class="sys">64-bit .deb package.</div>
-          <a class="btn" href="https://github.com/SamratDuttaOfficial/rewrite/releases/download/v2.0.1/rewrite_2.0.1_amd64.deb">Download</a></div>
-        <div><h3>Linux AppImage</h3><div class="sys">Any 64-bit distribution.</div>
-          <a class="btn" href="https://github.com/SamratDuttaOfficial/rewrite/releases/download/v2.0.1/Rewrite-2.0.1-x86_64.AppImage">Download</a></div>
+      <h2>Download</h2>
+      <p class="sub">Installers come straight from the GitHub release. For systems without one yet, the link explains how
+        to build it; builds people send in are listed once they are checked.</p>
+      <div class="files" id="downloads">
+        <div class="hdr"><span></span><span>File</span><span>System</span><span style="text-align:right">Size</span><span></span></div>
+        <div class="row"><span></span><span class="fname">Rewrite-2.0.1-Windows-Setup.exe</span><span class="sys"><b>Windows</b></span><span class="size"></span>
+          <span class="act"><a class="btn" href="https://github.com/SamratDuttaOfficial/rewrite/releases/download/v2.0.1/Rewrite-2.0.1-Windows-Setup.exe">Download</a></span></div>
+        <div class="row"><span></span><span class="fname">Rewrite-2.0.1-macOS-arm64.dmg</span><span class="sys"><b>macOS</b></span><span class="size"></span>
+          <span class="act"><a class="btn" href="https://github.com/SamratDuttaOfficial/rewrite/releases/download/v2.0.1/Rewrite-2.0.1-macOS-arm64.dmg">Download</a></span></div>
+        <div class="row"><span></span><span class="fname">rewrite_2.0.1_amd64.deb</span><span class="sys"><b>Debian / Ubuntu</b></span><span class="size"></span>
+          <span class="act"><a class="btn" href="https://github.com/SamratDuttaOfficial/rewrite/releases/download/v2.0.1/rewrite_2.0.1_amd64.deb">Download</a></span></div>
+        <div class="row"><span></span><span class="fname">Rewrite-2.0.1-x86_64.AppImage</span><span class="sys"><b>Linux</b></span><span class="size"></span>
+          <span class="act"><a class="btn" href="https://github.com/SamratDuttaOfficial/rewrite/releases/download/v2.0.1/Rewrite-2.0.1-x86_64.AppImage">Download</a></span></div>
       </div>
-      <p class="meta">All versions: <a href="https://github.com/SamratDuttaOfficial/rewrite/releases">github.com/SamratDuttaOfficial/rewrite/releases</a></p>
+      <p class="under">On first start Rewrite offers a one-time download of its models, about 400 MB. Older versions are on the
+        <a href="https://github.com/SamratDuttaOfficial/rewrite/releases">releases page</a>.</p>
     </div>
   </section>
 
-  <section id="humanize">
+  <section class="plain" id="documents">
     <div class="wrap">
-      <div class="kicker red">Rewriter</div>
-      <h2><del>AI draft</del> <ins>Your words.</ins></h2>
-      <p class="lead">Paste an AI draft or open your file, choose Auto-rewrite, and Rewrite turns it into natural
-        sentences that pass AI detectors and plagiarism checkers. Review every change, or apply them all at once.</p>
-      <div class="pair">
-        <div class="row"><div class="k">AI draft</div><div class="v before">In today's fast-paced digital landscape, it is important to note that many people rely on cloud services for everyday writing.</div></div>
-        <div class="row"><div class="k">Rewritten</div><div class="v">The fast-paced digital world places a significant amount of writing on cloud services, which is a must for many people.</div></div>
-        <div class="row"><div class="k">AI draft</div><div class="v before">It is fast, it keeps your drafts private, and it works without an internet connection.</div></div>
-        <div class="row"><div class="k">Rewritten</div><div class="v">Despite being offline and speedy, it ensures your drafts are confidential.<div class="score">meaning 93% · 73% reworded</div></div></div>
+      <h2>Open the files you already have</h2>
+      <p class="sub">The same suggestions work in every kind of document, and the formatting stays as it was.</p>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="t-docx">report.docx</button>
+        <button role="tab" aria-selected="false" data-tab="t-tex">paper.tex</button>
+        <button role="tab" aria-selected="false" data-tab="t-pdf">paper.pdf</button>
+        <button role="tab" aria-selected="false" data-tab="t-review">Review changes</button>
+        <button role="tab" aria-selected="false" data-tab="t-dark">Dark theme</button>
       </div>
-      <div class="facts"><span>free</span><span>no word limit</span><span>no account</span><span>works offline</span><span>markup and citations kept</span></div>
-    </div>
-  </section>
-
-  <section id="features">
-    <div class="wrap">
-      <div class="kicker red">Features</div>
-      <h2>One editor for the documents you already have.</h2>
-
-      <div class="feat">
-        <div><div class="kicker">Words and phrases</div><h3>Click a word. Get one that fits.</h3>
-          <p>Alternatives ranked by how well they fit the sentence, plus rewrites of the whole phrase around it.</p>
-          <ul><li>Wordy phrases flagged as you type</li><li>Alt+1 to Alt+9 applies a suggestion</li><li>Built-in thesaurus when the models are off</li></ul></div>
-        <img class="shot" loading="lazy" src="img/02-phrase-alternatives.png" width="1428" height="889" alt="Alternatives for the word important, with a phrase rewrite below">
+      <div class="tabpane show" id="t-docx">
+        <div><h3>Word and OpenDocument</h3>
+          <p>Open and save .docx, .doc, .odt, .fodt and .rtf with styles, lists, tables, pictures, charts, formulas and
+            footnotes. A formatting toolbar covers the everyday edits.</p>
+          <ul><li>Export to PDF, HTML, Markdown or LaTeX</li><li>Saving .doc uses LibreOffice if it is installed</li></ul></div>
+        <img loading="lazy" src="img/07-word-document.png" width="1400" height="860" alt="A Word report with headings, a list and a table open in Rewrite">
       </div>
-
-      <div class="feat">
-        <div><div class="kicker">Auto-rewrite</div><h3>Rewrite a whole document, then review it.</h3>
-          <p>Light, medium or strong. Each change is shown against the original, to accept or reject.</p>
-          <ul><li>Selection or whole document</li><li>Whole-sentence paraphrasing</li><li>LaTeX, maths, code and links untouched</li></ul></div>
-        <img class="shot" loading="lazy" src="img/05-auto-rewrite-review.png" width="1428" height="889" alt="Auto-rewrite review, change 1 of 9 with the old and new sentence">
+      <div class="tabpane" id="t-tex">
+        <div><h3>LaTeX and Markdown</h3>
+          <p>LaTeX on the left, the typeset PDF on the right, built with your own TeX installation. Markdown gets a live
+            preview. Commands, equations, citations and code are never rewritten.</p>
+          <ul><li>F5 rebuilds the preview</li><li>Works with MiKTeX, MacTeX and TeX Live</li></ul></div>
+        <img loading="lazy" src="img/06-latex-preview.png" width="1400" height="860" alt="A LaTeX paper with its PDF preview">
       </div>
-
-      <div class="feat">
-        <div><div class="kicker">Word and OpenDocument</div><h3>Edit .docx without Word.</h3>
-          <p>Styles, lists, tables, pictures, charts, formulas and footnotes survive the round trip.</p>
-          <ul><li>.docx .doc .odt .fodt .rtf</li><li>Formatting toolbar</li><li>Export to PDF, HTML, Markdown, LaTeX</li></ul></div>
-        <img class="shot" loading="lazy" src="img/07-word-document.png" width="1428" height="889" alt="A Word report with headings, a bulleted list and a table open in Rewrite">
+      <div class="tabpane" id="t-pdf">
+        <div><h3>PDF</h3>
+          <p>Highlight, underline, strike out, add notes, draw, white out, add text and pictures, and change a line of
+            text in place. Rotate, move, delete, insert or merge pages.</p>
+          <ul><li>Turn a PDF into an editable document</li><li>No Acrobat licence needed</li></ul></div>
+        <img loading="lazy" src="img/08-pdf-editor.png" width="1400" height="860" alt="A PDF open in Rewrite with the markup toolbar">
       </div>
-
-      <div class="feat">
-        <div><div class="kicker">LaTeX and Markdown</div><h3>Your paper and its PDF, side by side.</h3>
-          <p>Write LaTeX on the left and see the typeset PDF on the right, using your own TeX installation.</p>
-          <ul><li>F5 rebuilds</li><li>Commands and equations never rewritten</li><li>Live Markdown preview</li></ul></div>
-        <img class="shot" loading="lazy" src="img/06-latex-preview.png" width="1428" height="889" alt="A LaTeX file with its PDF preview">
+      <div class="tabpane" id="t-review">
+        <div><h3>Rewrite a whole document</h3>
+          <p>Auto-rewrite goes through a selection or the whole file. Apply every change, or step through them and
+            accept or reject each one against the original.</p>
+          <ul><li>Light, medium or strong</li><li>Whole-sentence paraphrasing can be turned on or off</li></ul></div>
+        <img loading="lazy" src="img/05-auto-rewrite-review.png" width="1400" height="860" alt="Reviewing change 1 of 9 after an auto-rewrite">
       </div>
-
-      <div class="feat">
-        <div><div class="kicker">PDF</div><h3>Mark up and fix PDFs.</h3>
-          <p>Highlight, underline, add notes, white out, replace a line of text, and rotate, move or merge pages.</p>
-          <ul><li>Convert a PDF into an editable document</li><li>Insert and delete pages</li><li>Add text and pictures</li></ul></div>
-        <img class="shot" loading="lazy" src="img/08-pdf-editor.png" width="1428" height="889" alt="A PDF open in Rewrite with the annotation toolbar">
+      <div class="tabpane" id="t-dark">
+        <div><h3>Light and dark</h3>
+          <p>One click switches the theme. Text size, fonts and panels can be set to taste.</p></div>
+        <img loading="lazy" src="img/09-dark-mode.png" width="1400" height="860" alt="Rewrite in its dark theme">
       </div>
     </div>
   </section>
 
-  <section id="replaces">
+  <section class="band">
     <div class="wrap">
-      <div class="kicker red">Instead of</div>
-      <h2>Close five apps. Open one.</h2>
-      <table class="table">
-        <thead><tr><th>Instead of</th><th>Rewrite does</th></tr></thead>
-        <tbody>
-          <tr><td><del>Microsoft Word</del></td><td>Opens and saves .docx, .odt and .rtf with their formatting</td></tr>
-          <tr><td><del>Overleaf</del></td><td>Edits LaTeX next to a live PDF preview, without uploading the paper</td></tr>
-          <tr><td><del>Adobe Acrobat</del></td><td>Highlights, notes, white-out, text edits, page merge and reorder</td></tr>
-          <tr><td><del>QuillBot, DeepL Write</del></td><td>Rephrases words, phrases and sentences with no word limit</td></tr>
-          <tr><td><del>Grammarly</del></td><td>Spelling and grammar underlines with one-click fixes, offline</td></tr>
-        </tbody>
-      </table>
+      <h2>Fewer apps, fewer subscriptions</h2>
+      <div class="dialog" role="img" aria-label="Find and replace dialog replacing five apps with Rewrite">
+        <div class="t">Find and replace</div>
+        <div class="b">
+          <span>Find</span><span class="field">Microsoft Word, Overleaf, Adobe Acrobat, QuillBot, Grammarly</span>
+          <span>Replace with</span><span class="field">Rewrite</span>
+          <span class="row-btns"><span class="btn">Replace</span><span class="btn blue">Replace all</span></span>
+          <span class="found">Word files, LaTeX with PDF preview, PDF markup, rephrasing and grammar, in one free program.</span>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section id="faq">
+  <section class="plain" id="questions">
     <div class="wrap">
-      <div class="kicker red">Questions</div>
-      <h2>Before you download.</h2>
-      <details><summary>Is it really free?</summary>
-        <p>Yes. No trial, no subscription, no account. The code is on GitHub under the MIT licence with the Commons
-          Clause: you may use and change it freely and keep the credit when you reuse it, but you may not sell it.</p></details>
-      <details><summary>Does my text leave my computer?</summary>
-        <p>No. The models run on your processor. The only download is the one-time model download of about 400 MB
-          when you first start it, and you can skip that and use Lite mode with the built-in thesaurus.</p></details>
-      <details><summary>Do I need a graphics card?</summary>
-        <p>No. It runs on an ordinary laptop processor.</p></details>
-      <details><summary>Windows says the installer is from an unknown publisher.</summary>
-        <p>The installer is not code-signed yet. Choose "More info" and then "Run anyway". On macOS, right-click the
-          app and choose Open the first time.</p></details>
-      <details><summary>Will it break my LaTeX or Markdown?</summary>
-        <p>No. Commands, environments, equations, citations, links and code are never changed; only the prose is.</p></details>
-      <details><summary>My computer is not in the download list.</summary>
-        <p>Choose its button anyway. It leads to a page with build steps and a form to send your build in. Once a
-          build is checked and approved, its download link appears on this site for everyone.</p></details>
-      <details><summary>Which languages does it support?</summary>
-        <p>English.</p></details>
+      <h2>Questions</h2>
+      <div class="faq">
+        <div><h3>Is it free?</h3><p>Yes, with no trial and no account. The source is on GitHub under the MIT licence
+          with the Commons Clause: use and change it freely, keep the credit when you reuse it, and do not sell it.</p></div>
+        <div><h3>Does my text leave the computer?</h3><p>No. The models run on your processor. The only download is the
+          one-time model download of about 400 MB, and you can skip it and use the built-in thesaurus instead.</p></div>
+        <div><h3>Do I need a graphics card?</h3><p>No. An ordinary laptop is enough.</p></div>
+        <div><h3>Windows warns about an unknown publisher.</h3><p>The installer is not code-signed yet. Choose "More info",
+          then "Run anyway". On a Mac, right-click the app and choose Open the first time.</p></div>
+        <div><h3>Will it break my LaTeX or Markdown?</h3><p>No. Only the prose is rewritten; commands, maths, citations,
+          links and code are left alone.</p></div>
+        <div><h3>My system is not in the list.</h3><p>Pick its row anyway. It leads to the build steps and a form to send
+          your build in, so others with the same system can download it.</p></div>
+      </div>
     </div>
   </section>
 </main>
 
 <footer>
   <div class="wrap">
-    <span>Rewrite by Samrat Dutta · <a href="https://github.com/samratduttaofficial">github.com/samratduttaofficial</a></span>
-    <span><a href="https://github.com/SamratDuttaOfficial/rewrite/issues">Report a problem</a> · <a href="https://github.com/SamratDuttaOfficial/rewrite/blob/main/LICENSE">Licence</a></span>
+    <span>Rewrite by Samrat Dutta, <a href="https://github.com/samratduttaofficial">github.com/samratduttaofficial</a></span>
+    <span><a href="https://github.com/SamratDuttaOfficial/rewrite/issues">Report a problem</a> &nbsp; <a href="https://github.com/SamratDuttaOfficial/rewrite/blob/main/LICENSE">Licence</a></span>
   </div>
 </footer>
 
