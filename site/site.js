@@ -106,28 +106,29 @@ async function renderDownloads() {
   list.innerHTML = `<div class="hdr"><span></span><span>File</span><span>System</span><span style="text-align:right">Size</span><span></span></div>` + rows.join("");
 }
 
-// -- the editor example: every suggestion below is real output from Rewrite 2.0.1 ---------------------------
+// -- the editor example: every suggestion below is real output from Rewrite 2.0.1 (the auto-rewrite of this text
+// with the spelling slip fixed, Medium strength, all three kinds of change) ---------------------------------------
 
 const DOC = [
-  ["In today's fast-paced digital landscape, ", { k: "wordy", id: "p1", t: "it is important to note that" }, " many people rely on cloud services for everyday writing."],
-  [{ k: "sent", id: "s2", t: ["It is ", { k: "word", id: "w1", t: "fast" }, ", it keeps your drafts private, and it works without an internet connection."] },
-    " Even good tools make mistakes, so read ", { k: "spell", id: "sp", t: "evrey" }, " result carefully."],
+  ["In the realm of urban planning, trees are often overlooked ", { k: "wordy", id: "p1", t: "due to the fact that" }, " they take years to grow."],
+  [{ k: "sent", id: "s2", t: ["Trees are ", { k: "word", id: "w1", t: "cheap" }, " to plant and keep streets cool."] },
+    " Even a few trees can make ", { k: "spell", id: "sp", t: "evrey" }, " street feel calmer."],
 ];
 const SUG = {
-  p1: { head: "Or reword the whole phrase", what: "it is important to note that", alts: [["note that", 92, "phrase", "meaning 99%"], ["it is crucial to note that", 85, "synonym"], ["it is critical to note that", 85, "synonym", "meaning 100%"]] },
-  w1: { head: "Alternatives for", what: "fast", alts: [["quick", 80, "synonym", "hurried and brief"], ["speedy", 70, "related", "acting or moving quickly"], ["rapid", 40, "related"], ["quicker", 30, "synonym"]] },
-  sp: { head: "Spelling", what: "evrey", alts: [["every", 95, "spelling"]] },
+  p1: { head: "Or reword the whole phrase", what: "due to the fact that", alts: [["because", 94, "phrase", "meaning 97%"], ["as", 11, "phrase", "meaning 98%"]] },
+  w1: { head: "Alternatives for", what: "cheap", alts: [["inexpensive", 83, "synonym", "relatively low in price or charging low prices"], ["affordable", 43, "related"], ["low-cost", 29, "related"]] },
+  sp: { head: "Spelling", what: "evrey", alts: [["every", 77, "spelling"], ["even", 29, "spelling"], ["ever", 14, "spelling"]] },
   s2: { head: "Whole sentence", what: "", cards: [
-    ["Despite being offline and speedy, it ensures your drafts are confidential.", "meaning 93% · 73% reworded"],
-    ["It is speedy, it ensures your drafts are confidential, and operates offline.", "meaning 95% · 50% reworded"],
-    ["The service is speedy, safeguarding your drafts and operates offline.", "meaning 90% · 60% reworded"]] },
+    ["Planting trees is a cost-effective solution for keeping the streets cool.", "meaning 97% · 73% reworded"],
+    ["Trees are a cost-effective solution for keeping the streets cool.", "meaning 98% · 60% reworded"],
+    ["The cost of planting trees is low, and they are a practical solution for keeping the streets cool.", "meaning 94% · 78% reworded"]] },
 };
 const AUTO = [
-  "The fast-paced digital world places a significant amount of writing on cloud services, which is a must for many people.",
-  "Despite being offline and speedy, it ensures your drafts are confidential.",
+  "Trees are often neglected in urban planning because it takes years for them to grow.",
+  "Keeping streets cool is possible with inexpensive trees. Every street can be made more peaceful with the addition of a few trees.",
 ];
 const HINT = `<div class="head">Try it</div><p class="hint" style="margin-top:6px">
-  Click the <b>highlight</b>, the word <b>fast</b>, the <b>squiggle</b> or the <b>second sentence</b>.
+  Click the <b>highlight</b>, the word <b>cheap</b>, the <b>squiggle</b> or the <b>second sentence</b>.
   Or press <b>Auto-rewrite</b>.</p>`;
 
 let state;
@@ -142,7 +143,7 @@ function piece(x) {
 function drawDoc() {
   const doc = document.getElementById("doc");
   if (state.auto) {
-    doc.innerHTML = `<p><span class="changed">${esc(AUTO[0])}</span></p><p><span class="changed">${esc(AUTO[1])}</span> Even good tools make mistakes, so read every result carefully.</p>`;
+    doc.innerHTML = AUTO.map(t => `<p><span class="changed">${esc(t)}</span></p>`).join("");
     return;
   }
   doc.innerHTML = DOC.map(p => `<p>${p.map(piece).join("")}</p>`).join("");
