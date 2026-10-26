@@ -249,7 +249,18 @@ async function renderBuildPage() {
     : `<p class="sub">None yet.</p>`;
 }
 
+async function renderStars() {
+  const el = document.querySelector("[data-stars]");
+  if (!el) return;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}`);
+    const n = r.ok ? (await r.json()).stargazers_count : 0;
+    if (n > 0) { el.textContent = n.toLocaleString(); el.hidden = false; }
+  } catch {}
+}
+
 renderDownloads();
+renderStars();
 initDemo();
 initTheme();
 initTabs();

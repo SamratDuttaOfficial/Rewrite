@@ -14,6 +14,12 @@
   <a href="https://github.com/SamratDuttaOfficial/Rewrite/releases/latest"><b>Download</b></a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/SamratDuttaOfficial/Rewrite/releases/latest"><img src="https://img.shields.io/github/v/release/SamratDuttaOfficial/Rewrite?label=release" alt="Latest release"></a>
+  <a href="https://github.com/SamratDuttaOfficial/Rewrite/releases"><img src="https://img.shields.io/github/downloads/SamratDuttaOfficial/Rewrite/total?label=downloads" alt="Downloads"></a>
+  <a href="https://github.com/SamratDuttaOfficial/Rewrite/stargazers"><img src="https://img.shields.io/github/stars/SamratDuttaOfficial/Rewrite?style=flat&label=stars" alt="GitHub stars"></a>
+</p>
+
 ![Clicking a word shows alternatives that fit the sentence](docs/screenshot.png)
 
 ## Features
@@ -107,6 +113,8 @@ when you reuse the code, and do not sell Rewrite or a product built mainly on it
 ## Credits
 
 Made by **Samrat Dutta** · [github.com/samratduttaofficial](https://github.com/samratduttaofficial)
+
+If Rewrite is useful to you, a star on GitHub helps other people find it.
 
 Rewording someone else's text does not make it your own work. Cite your sources.
 

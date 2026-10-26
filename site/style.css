@@ -70,7 +70,11 @@ code, pre { font-family: "Cascadia Mono", Consolas, "SF Mono", monospace; font-s
 .top nav a:hover { background: var(--line-2); }
 .top-tools { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .top-tools .btn { margin-left: 6px; }
+.btn.star { padding: 9px 12px; }
+.btn.star .count { padding-left: 8px; border-left: 1px solid var(--line); color: var(--text-2); }
 @media (max-width: 720px) { .top nav { display: none; } }
+@media (max-width: 480px) { .btn.star .lbl { display: none; } }
+.under .ic { width: 16px; height: 16px; margin: -2px 4px 0 0; color: var(--blue); }
 
 /* icons: Rewrite's own stroke icons, from icons.svg */
 .ic { width: 18px; height: 18px; flex: none; display: inline-block; vertical-align: middle; }
