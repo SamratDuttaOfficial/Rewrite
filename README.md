@@ -6,7 +6,7 @@
 
 <p align="center">
   Rewrite any text. Edit any document.<br>
-  Make AI drafts read as human, fix grammar, and edit Word, LaTeX and PDF files. Free for Windows, macOS and Linux.
+  Make AI drafts read as human, fix grammar, and edit Word, LaTeX and PDF files. Free, with no account and no word limit.
 </p>
 
 <p align="center">
