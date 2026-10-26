@@ -29,7 +29,9 @@
 
 ## Install
 
-Download the file for your system from the [latest release](https://github.com/SamratDuttaOfficial/rewrite/releases/latest).
+Download the file for your system from the [website](https://samratduttaofficial.github.io/rewrite/) or the
+[latest release](https://github.com/SamratDuttaOfficial/rewrite/releases/latest). For a system without an installer,
+the website explains how to build one and send it in.
 
 | System | File | How |
 |---|---|---|

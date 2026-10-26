@@ -1,0 +1,68 @@
+name: Community build
+description: Send in an installer you built for a system that has no official one yet.
+title: "Community build: "
+labels: ["community-build"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for building Rewrite. Once the build is checked, the maintainer adds the `approved` label and the
+        download appears on https://samratduttaofficial.github.io/rewrite/. Build from an unmodified release tag.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS (Intel)
+        - Linux on ARM
+        - Fedora / openSUSE (.rpm)
+        - Windows on ARM (native)
+        - Other (say which in the notes)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Rewrite version
+      description: The release tag you built, for example 2.0.1.
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Download link
+      description: An https link to the file, ideally a release in your fork of this repository.
+      placeholder: https://github.com/you/rewrite/releases/download/v2.0.1/...
+    validations:
+      required: true
+  - type: input
+    id: sha
+    attributes:
+      label: SHA-256
+      description: Checksum of the file.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How you built it
+      description: System version, tool versions and the exact commands, so someone else can repeat the build.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything that did not work, or changes the build needed.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I built it from an unmodified release tag of this repository.
+          required: true
+        - label: I started the built program and it opened a document.
+          required: true
+        - label: The file contains nothing besides Rewrite and the libraries the build bundles.
+          required: true
