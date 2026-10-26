@@ -3,17 +3,11 @@
 use rewrite_core::export::{self, Options, PdfReader, Source, Tools};
 use rewrite_core::model::{self, Block, Document, Paragraph, Run};
 use rewrite_core::{convert, files, latex, pdfextract, textclean};
+use rewrite_testkit::TempDir;
 use std::cell::Cell;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 const MD: &str = "# Results\n\nThe method works. It is fast.\n\n- one\n- two\n";
-
-fn temp(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("rewrite-export-test-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
 
 fn md_source() -> Source {
     Source::text("markdown", "notes.md", None, MD.into(), "utf-8")
@@ -25,7 +19,7 @@ fn text_of(path: &Path, fmt: &str) -> String {
 
 #[test]
 fn markdown_to_formatted_and_text() {
-    let dir = temp("md");
+    let dir = TempDir::new("export-md");
     let tools = Tools::default();
     for (ext, fmt) in [(".docx", "docx"), (".odt", "odt"), (".rtf", "rtf"), (".fodt", "fodt")] {
         let path = dir.join(format!("out{ext}"));
@@ -42,12 +36,11 @@ fn markdown_to_formatted_and_text() {
     export::export(&md_source(), ".txt", &txt, &Options::default(), &tools).unwrap();
     assert!(std::fs::read_to_string(&txt).unwrap().starts_with("Results\n-------"));
     assert!(!dir.join("out.txt.rewrite-tmp").exists());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn same_kind_text_is_copied_in_its_encoding() {
-    let dir = temp("copy");
+    let dir = TempDir::new("export-copy");
     let text = "# Café “menu”\n\nCrème brûlée €5\n";
     let src = Source::text("markdown", "menu.md", None, text.into(), "cp1252");
     let path = dir.join("copy.md");
@@ -57,12 +50,11 @@ fn same_kind_text_is_copied_in_its_encoding() {
     let src = Source::text("plain", "a.txt", None, "a → b".into(), "latin-1");
     export::export(&src, ".txt", &dir.join("a.txt"), &Options::default(), &Tools::default()).unwrap();
     assert_eq!(std::fs::read(dir.join("a.txt")).unwrap(), b"a ? b");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn sentences_on_lines_of_their_own() {
-    let dir = temp("sentences");
+    let dir = TempDir::new("export-sentences");
     let path = dir.join("split.md");
     let opts = Options { sentences: true, ..Default::default() };
     // without a helper the text is copied as it is, as in Python
@@ -72,12 +64,11 @@ fn sentences_on_lines_of_their_own() {
     export::export(&md_source(), ".md", &path, &opts, &tools).unwrap();
     let out = std::fs::read_to_string(&path).unwrap();
     assert!(out.contains("The method works.\nIt is fast."), "{out}");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn rewrite_engine_pdf() {
-    let dir = temp("pdf");
+    let dir = TempDir::new("export-pdf");
     let path = dir.join("out.pdf");
     let letter = model::PageSetup { width: 612.0, height: 792.0, ..Default::default() };
     let opts = Options { page: Some(letter), numbers: Some(false), ..Default::default() };
@@ -85,7 +76,6 @@ fn rewrite_engine_pdf() {
     let pdf = std::fs::read(&path).unwrap();
     assert!(pdf.starts_with(b"%PDF"));
     assert!(String::from_utf8_lossy(&pdf).contains("612"));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -94,13 +84,14 @@ fn latex_engine_pdf() {
         eprintln!("no LaTeX installed: skipped");
         return;
     }
-    let dir = temp("latexpdf");
+    let dir = TempDir::new("export-latexpdf");
     let opts = Options { engine: Some("latex".into()), ..Default::default() };
     let path = dir.join("via-tex.pdf");
     assert_eq!(export::export(&md_source(), ".pdf", &path, &opts, &Tools::default()).unwrap(), [path.clone()]);
     assert!(std::fs::read(&path).unwrap().starts_with(b"%PDF"));
 
     let tex = Source::text("latex", "paper.tex", Some(dir.join("paper.tex")), r"\documentclass{article}\begin{document}Hi\end{document}".into(), "utf-8");
+    let _build = TempDir::adopt(latex::build_dir(Some(&dir.join("paper.tex"))));
     let path = dir.join("paper.pdf");
     export::export(&tex, ".pdf", &path, &opts, &Tools::default()).unwrap();
     assert!(std::fs::read(&path).unwrap().starts_with(b"%PDF"));
@@ -112,7 +103,6 @@ fn latex_engine_pdf() {
 
     let cancelled = Tools { cancel: &|| true, ..Default::default() };
     assert_eq!(export::export(&tex, ".pdf", &path, &opts, &cancelled).unwrap_err(), export::CANCELLED);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Answers with a fixed document and remembers how it was asked.
@@ -159,7 +149,7 @@ impl PdfReader for FakeReader {
 
 #[test]
 fn pdf_sources_go_through_the_reader() {
-    let dir = temp("reader");
+    let dir = TempDir::new("export-reader");
     let reader = FakeReader::new();
     let pages = Cell::new(0);
     let progress = |_: usize, n: usize| pages.set(n);
@@ -185,12 +175,11 @@ fn pdf_sources_go_through_the_reader() {
 
     // without a reader a PDF cannot be converted
     assert!(export::export(&src, ".txt", &dir.join("x.txt"), &Options::default(), &Tools::default()).is_err());
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn latex_figures_that_are_pdfs_use_the_reader() {
-    let dir = temp("figure");
+    let dir = TempDir::new("export-figure");
     std::fs::write(dir.join("plot.pdf"), b"%PDF-fake").unwrap();
     let reader = FakeReader::new();
     let tools = Tools { pdf: Some(&reader), ..Default::default() };
@@ -199,7 +188,6 @@ fn latex_figures_that_are_pdfs_use_the_reader() {
     let out = dir.join("paper.docx");
     export::export(&src, ".docx", &out, &Options::default(), &tools).unwrap();
     assert_eq!(reader.figures.get(), 1);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

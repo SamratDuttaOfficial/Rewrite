@@ -2,8 +2,9 @@
 //! installed here (skipped without one).
 
 use rewrite_core::latex;
-use rewrite_testkit::{json, root, Fixture};
+use rewrite_testkit::{json, root, Fixture, TempDir};
 use serde_json::Value;
+use std::path::PathBuf;
 
 fn fixture() -> Fixture {
     Fixture::load("latexbuild")
@@ -43,14 +44,14 @@ fn build_dir_is_stable() {
     assert_ne!(latex::build_dir(None), latex::build_dir(Some(std::path::Path::new("a.tex"))));
 }
 
-/// Copies a corpus log folder file into a fresh temp folder.
-fn corpus_copy(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("rewrite-latex-test-{}-{}", std::process::id(), name.replace('.', "-")));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+/// Copies a corpus log folder file into a fresh temp folder. The folder and the file's build folder go away when
+/// the returned guards are dropped.
+fn corpus_copy(name: &str) -> (PathBuf, [TempDir; 2]) {
+    let dir = TempDir::new(&format!("latex-{}", name.replace('.', "-")));
     let path = dir.join(name);
     std::fs::copy(root().join("tests").join("corpus").join("logs").join(name), &path).unwrap();
-    path
+    let build = TempDir::adopt(latex::build_dir(Some(&path)));
+    (path, [dir, build])
 }
 
 fn installed() -> bool {
@@ -66,7 +67,7 @@ fn build_errors() {
     if !installed() {
         return;
     }
-    let path = corpus_copy("errors.tex");
+    let (path, _cleanup) = corpus_copy("errors.tex");
     let source = std::fs::read_to_string(&path).unwrap();
     let res = latex::build(&source, Some(&path), "utf-8", &|| false).expect("not cancelled");
     assert!(!res.engine.is_empty());
@@ -77,7 +78,6 @@ fn build_errors() {
     // nothing is written next to the document
     let beside: Vec<_> = std::fs::read_dir(path.parent().unwrap()).unwrap().collect();
     assert_eq!(beside.len(), 1);
-    let _ = std::fs::remove_dir_all(path.parent().unwrap());
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn build_warnings() {
     if !installed() {
         return;
     }
-    let path = corpus_copy("warnings.tex");
+    let (path, _cleanup) = corpus_copy("warnings.tex");
     let source = std::fs::read_to_string(&path).unwrap();
     let res = latex::build(&source, Some(&path), "utf-8", &|| false).expect("not cancelled");
     assert!(res.errors.is_empty(), "{:?}", res.errors);
@@ -93,7 +93,6 @@ fn build_warnings() {
     let pdf = res.pdf.expect("a PDF");
     assert!(pdf.starts_with(b"%PDF"));
     assert_eq!(res.message, "");
-    let _ = std::fs::remove_dir_all(path.parent().unwrap());
 }
 
 #[test]
@@ -103,6 +102,7 @@ fn build_cancel() {
     }
     let src = "\\documentclass{article}\\begin{document}x\\end{document}";
     let path = std::env::temp_dir().join(format!("rewrite-cancel-{}.tex", std::process::id()));
+    let _build = TempDir::adopt(latex::build_dir(Some(&path)));
     assert!(latex::build(src, Some(&path), "utf-8", &|| true).is_err());
 }
 
@@ -122,18 +122,14 @@ fn build_with_bibtex() {
     if !installed() || latex::find("bibtex").is_none() {
         return;
     }
-    let dir = std::env::temp_dir().join(format!("rewrite-bib-test-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = TempDir::new("bib");
     std::fs::write(dir.join("refs.bib"), "@book{knuth, author={Donald Knuth}, title={The TeXbook}, year={1984}}\n").unwrap();
     let path = dir.join("paper.tex");
+    let out = TempDir::adopt(latex::build_dir(Some(&path)));
     let src = r"\documentclass{article}\begin{document}See \cite{knuth}.\bibliographystyle{plain}\bibliography{refs}\end{document}";
     let res = latex::build(src, Some(&path), "utf-8", &|| false).unwrap();
     assert!(res.pdf.is_some(), "{} {:?}", res.message, res.errors);
-    let out = latex::build_dir(Some(&path));
     assert!(std::fs::read_to_string(out.join("paper.bbl")).unwrap().contains("TeXbook"));
     assert!(out.join("paper.bibstamp").is_file());
     assert!(!res.log.contains("Citation `knuth' on page 1 undefined"));
-    let _ = std::fs::remove_dir_all(&dir);
-    let _ = std::fs::remove_dir_all(&out);
 }

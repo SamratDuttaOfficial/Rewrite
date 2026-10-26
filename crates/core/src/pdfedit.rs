@@ -866,6 +866,5 @@ mod tests {
         assert_eq!(p.len(), 6);
         assert_eq!(p[0].4, 90);
         assert_eq!((p[1].2 - p[1].0, p[1].3 - p[1].1), (300.0, 400.0));
-        std::fs::write(std::env::temp_dir().join("rewrite_pdfedit_test.pdf"), &out).unwrap();
     }
 }

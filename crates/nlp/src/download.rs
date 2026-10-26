@@ -278,15 +278,9 @@ pub fn sha256(path: &Path) -> std::io::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rewrite_testkit::TempDir;
     use std::io::BufRead;
     use std::net::TcpListener;
-
-    fn temp_dir(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("rewrite-nlp-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&d);
-        fs::create_dir_all(&d).unwrap();
-        d
-    }
 
     fn hex_sha(data: &[u8]) -> String {
         Sha256::digest(data).iter().map(|b| format!("{b:02x}")).collect()
@@ -349,7 +343,7 @@ mod tests {
     #[test]
     fn resumes_with_range_on_206() {
         let data: Vec<u8> = (0..700_000u32).map(|i| (i * 7 % 251) as u8).collect();
-        let dir = temp_dir("resume");
+        let dir = TempDir::new("nlp-resume");
         let dest = dir.join("blob.bin");
         fs::write(part_path(&dest), &data[..300_000]).unwrap();
         let (url, server) = serve(data.clone(), true, 1);
@@ -364,7 +358,7 @@ mod tests {
     #[test]
     fn restarts_when_the_server_ignores_range() {
         let data: Vec<u8> = (0..400_000u32).map(|i| (i % 253) as u8).collect();
-        let dir = temp_dir("restart");
+        let dir = TempDir::new("nlp-restart");
         let dest = dir.join("blob.bin");
         fs::write(part_path(&dest), b"stale bytes").unwrap();
         let (url, server) = serve(data.clone(), false, 1);
@@ -376,7 +370,7 @@ mod tests {
     #[test]
     fn rejects_a_bad_checksum_and_drops_the_part() {
         let data = vec![42u8; 1000];
-        let dir = temp_dir("checksum");
+        let dir = TempDir::new("nlp-checksum");
         let dest = dir.join("blob.bin");
         let wrong = leak(file("blob.bin", "blob.bin", 1000, "00"));
         let (url, server) = serve(data, true, 1);
@@ -389,7 +383,7 @@ mod tests {
     #[test]
     fn cancel_keeps_the_part() {
         let data = vec![1u8; 600_000];
-        let dir = temp_dir("cancel");
+        let dir = TempDir::new("nlp-cancel");
         let dest = dir.join("blob.bin");
         let (url, server) = serve(data.clone(), true, 1);
         let cancel = AtomicBool::new(false);
@@ -406,7 +400,7 @@ mod tests {
         let spec = spec("paraphrase");
         let config = spec.files.iter().find(|f| f.name == "config.json").unwrap();
         let only_config = ModelSpec { files: std::slice::from_ref(config), ..*spec };
-        let dir = temp_dir("config");
+        let dir = TempDir::new("nlp-config");
         let mut calls = Vec::new();
         download_into(&dir, &only_config, &mut |d, t| calls.push((d, t)), &AtomicBool::new(false)).unwrap();
         assert_eq!(sha256(&dir.join("config.json")).unwrap(), config.sha256);

@@ -1,7 +1,7 @@
 //! files.rs and protect.rs against rewrite/formats.py (fixture group "formats").
 
 use rewrite_core::{files, protect};
-use rewrite_testkit::{byte_to_char, json, Fixture};
+use rewrite_testkit::{byte_to_char, json, Fixture, TempDir};
 use serde_json::Value;
 use std::path::Path;
 
@@ -64,8 +64,7 @@ fn encodings_round_trip() {
 
 #[test]
 fn load_and_save_keep_encoding_and_newlines() {
-    let dir = std::env::temp_dir().join(format!("rewrite-files-test-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = TempDir::new("files");
     let path = dir.join("notes.txt");
     std::fs::write(&path, files::encode("# Title\r\n\r\ncafé “x”\r\n", "cp1252", false).unwrap()).unwrap();
     let mut doc = files::load(&path).unwrap();
@@ -89,7 +88,6 @@ fn load_and_save_keep_encoding_and_newlines() {
     std::fs::write(dir.join("ok.pdf"), b"junk%PDF-1.4").unwrap();
     assert_eq!(files::load(dir.join("ok.pdf")).unwrap().kind, "pdf");
     assert!(files::save_rich(rich.model.as_ref().unwrap(), dir.join("x.pdf")).unwrap_err().contains("not .pdf"));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

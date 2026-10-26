@@ -221,6 +221,7 @@ pub fn export(source: &Source, target: &str, path: &Path, opts: &Options, tools:
             "latex" => {
                 let (tex, side) = convert::write("tex", &model, &stem, None)?;
                 let work = std::env::temp_dir().join(format!("rewrite-export-{}-{}", std::process::id(), unique()));
+                let tex_path = work.join(format!("{stem}.tex"));
                 let built = (|| {
                     for (rel, data) in &side {
                         let full = work.join(rel);
@@ -229,8 +230,10 @@ pub fn export(source: &Source, target: &str, path: &Path, opts: &Options, tools:
                     }
                     std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
                     let tex = String::from_utf8_lossy(&tex);
-                    latex::build(&tex, Some(&work.join(format!("{stem}.tex"))), "utf-8", tools.cancel).map_err(|_| CANCELLED.to_string())
+                    latex::build(&tex, Some(&tex_path), "utf-8", tools.cancel).map_err(|_| CANCELLED.to_string())
                 })();
+                // The build folder belongs to this one-off path, so nothing would ever reuse it.
+                let _ = std::fs::remove_dir_all(latex::build_dir(Some(&tex_path)));
                 let _ = std::fs::remove_dir_all(&work);
                 let res = built?;
                 put(&file_name, &res.pdf.clone().ok_or_else(|| latex_failure(&res))?)?;

@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// One recorded call.
 #[derive(Clone, Debug, serde::Deserialize)]
@@ -126,6 +126,45 @@ pub fn models_dir() -> Option<PathBuf> {
             .iter()
             .all(|f| d.join(f).is_file())
     })
+}
+
+/// A folder in the system temp folder that is deleted when the value is dropped, so a test leaves nothing behind
+/// whether it passes or panics.
+pub struct TempDir(PathBuf);
+
+impl TempDir {
+    /// A fresh, empty folder for one test. The name holds the process ID, so parallel test runs don't share it.
+    pub fn new(name: &str) -> TempDir {
+        let dir = std::env::temp_dir().join(format!("rewrite-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("cannot create {}: {e}", dir.display()));
+        TempDir(dir)
+    }
+
+    /// Takes charge of a folder that the code under test creates, such as a LaTeX build folder.
+    pub fn adopt(dir: PathBuf) -> TempDir {
+        TempDir(dir)
+    }
+}
+
+impl std::ops::Deref for TempDir {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for TempDir {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }
 
 /// Bytes recorded as `{"b64": ...}` become arrays of numbers, the form serde uses for byte buffers.
