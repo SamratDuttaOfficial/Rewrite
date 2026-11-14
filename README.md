@@ -46,12 +46,12 @@ the website explains how to build one and send it in.
 
 | System | File | How |
 |---|---|---|
-| Windows 10/11 | `Rewrite-2.0.1-Windows-Setup.exe` | Run it. No admin rights needed. |
-| Windows 11 on ARM | `Rewrite-2.0.1-Windows-arm64-Setup.exe` | Run it. No admin rights needed. |
-| macOS 15+, Apple Silicon | `Rewrite-2.0.1-macOS-arm64.dmg` | Drag to Applications. The first time, right-click and choose **Open**. |
-| macOS 15+, Intel | `Rewrite-2.0.1-macOS-x86_64.dmg` | Drag to Applications. The first time, right-click and choose **Open**. |
-| Debian / Ubuntu | `rewrite_2.0.1_amd64.deb`, `rewrite_2.0.1_arm64.deb` | `sudo apt install ./rewrite_2.0.1_amd64.deb` |
-| Other Linux | `Rewrite-2.0.1-x86_64.AppImage`, `Rewrite-2.0.1-aarch64.AppImage` | `chmod +x` it, then run it. |
+| Windows 10/11 | `Rewrite-2.0.3-Windows-Setup.exe` | Run it. No admin rights needed. |
+| Windows 11 on ARM | `Rewrite-2.0.3-Windows-arm64-Setup.exe` | Run it. No admin rights needed. |
+| macOS 15+, Apple Silicon | `Rewrite-2.0.3-macOS-arm64.dmg` | Drag to Applications. The first time, right-click and choose **Open**. |
+| macOS 15+, Intel | `Rewrite-2.0.3-macOS-x86_64.dmg` | Drag to Applications. The first time, right-click and choose **Open**. |
+| Debian / Ubuntu | `rewrite_2.0.3_amd64.deb`, `rewrite_2.0.3_arm64.deb` | `sudo apt install ./rewrite_2.0.3_amd64.deb` |
+| Other Linux | `Rewrite-2.0.3-x86_64.AppImage`, `Rewrite-2.0.3-aarch64.AppImage` | `chmod +x` it, then run it. |
 
 On first start, Rewrite offers a one-time download (about 400 MB) for its best suggestions. Skip it to run in Lite
 mode.
