@@ -5,6 +5,10 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      systems:
+        description: 'Runners to build on, as a JSON list (empty builds all), e.g. ["ubuntu-24.04"]'
+        default: ''
 
 permissions:
   contents: write
@@ -16,7 +20,7 @@ jobs:
       matrix:
         # macOS 15 rather than the latest: Homebrew builds GTK for the macOS it runs on, so this sets the oldest
         # macOS the app supports
-        os: [windows-latest, windows-11-arm, macos-15, macos-15-intel, ubuntu-24.04, ubuntu-24.04-arm]
+        os: ${{ fromJSON(inputs.systems || '["windows-latest", "windows-11-arm", "macos-15", "macos-15-intel", "ubuntu-24.04", "ubuntu-24.04-arm"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -105,12 +109,27 @@ jobs:
           mkdir -p "$HOME/tools"
           curl -fsSL -o "$HOME/tools/linuxdeploy" "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-$(uname -m).AppImage"
           curl -fsSL -o "$HOME/tools/linuxdeploy-plugin-gtk.sh" https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          curl -fsSL -o "$HOME/tools/appimagetool" "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$(uname -m).AppImage"
           chmod +x "$HOME/tools/"*
           echo "$HOME/tools" >> "$GITHUB_PATH"
           echo "LINUXDEPLOY=$HOME/tools/linuxdeploy" >> "$GITHUB_ENV"
+          echo "APPIMAGETOOL=$HOME/tools/appimagetool" >> "$GITHUB_ENV"
           echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
 
       - run: cargo xtask package
+
+      # the AppImage must also start on the oldest Ubuntu LTS still supported, which has an older glibc
+      - name: AppImage on Ubuntu 22.04 (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm -v "$PWD/dist/installers:/dist:ro" ubuntu:22.04 bash -ec '
+            apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xvfb xauth >/dev/null
+            cd /tmp && /dist/Rewrite-*-$(uname -m).AppImage --appimage-extract >/dev/null
+            xvfb-run -a ./squashfs-root/AppRun --selftest /tmp/selftest.log || { cat /tmp/selftest.log; exit 1; }
+            cat /tmp/selftest.log
+            set +e; timeout 20 xvfb-run -a ./squashfs-root/AppRun; rc=$?; set -e
+            [ "$rc" = 124 ] || { echo "Rewrite exited early ($rc)"; exit 1; }
+            echo "Rewrite started and kept running"'
       - uses: actions/upload-artifact@v4
         with:
           name: rewrite-${{ runner.os }}-${{ runner.arch }}

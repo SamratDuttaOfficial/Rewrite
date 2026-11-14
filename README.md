@@ -102,7 +102,7 @@ cargo xtask package
 ```
 
 This builds the installer for the current system into `dist/installers/` (on Windows it needs Inno Setup 6; on
-Linux, `linuxdeploy` for the AppImage). Pushing a version tag such as `v1.0.0` builds them all, for x64 and ARM64, on
+Linux, `linuxdeploy` and `appimagetool` for the AppImage). Pushing a version tag such as `v1.0.0` builds them all, for x64 and ARM64, on
 GitHub Actions and attaches them to the release.
 
 ## Licence

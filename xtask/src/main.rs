@@ -9,7 +9,8 @@
 //!                              build assets/thesaurus.json.gz from WordNet 3.0 and wordfreq
 //!
 //! Packaging needs: on Windows MSYS2's GTK (UCRT64 on x64, CLANGARM64 on ARM64) and Inno Setup 6; on macOS
-//! Homebrew's GTK; on Linux dpkg-deb for the .deb and linuxdeploy (with its GTK plugin) for the AppImage.
+//! Homebrew's GTK; on Linux dpkg-deb for the .deb, and linuxdeploy (with its GTK plugin) and appimagetool for
+//! the AppImage.
 //! Where Microsoft publishes no ONNX Runtime (Intel Macs), build it and point ORT_LIB_DIR at it.
 
 use std::collections::BTreeSet;
@@ -536,6 +537,48 @@ fn min_macos(files: &[PathBuf]) -> String {
     best
 }
 
+/// The AppImage's start script. The program is built against the build machine's C library (glibc), so a
+/// system with an older one can't run it directly. There the program runs through the loader and C library
+/// packed in the AppImage; a system with the same or a newer glibc runs it directly, so its graphics drivers
+/// (built against that newer glibc) keep loading. The loader sits in usr/bin next to the program, because the
+/// program finds its assets and libraries from the folder of the running executable.
+fn linux_apprun(glibc: &str, loader: &str) -> String {
+    format!(
+        r#"#!/bin/sh
+here="$(dirname "$(readlink -f "$0")")"
+need="{glibc}"
+have="$(getconf GNU_LIBC_VERSION 2>/dev/null | cut -d' ' -f2)"
+if [ -n "$have" ] && [ "$(printf '%s\n%s\n' "$need" "$have" | sort -V | head -n 1)" = "$need" ]; then
+    exec "$here/usr/bin/rewrite" "$@"
+fi
+exec "$here/usr/bin/{loader}" --library-path "$here/usr/lib/glibc:$here/usr/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}" "$here/usr/bin/rewrite" "$@"
+"#
+    )
+}
+
+/// Copies the build machine's C library, its loader and the C++ runtime into the AppDir for systems with an
+/// older glibc (see `linux_apprun`). They must all come from one glibc version.
+fn bundle_glibc(appdir: &Path, machine: &str, loader: &str) -> Result<(), String> {
+    let lib = PathBuf::from(format!("/lib/{machine}-linux-gnu"));
+    let dir = appdir.join("usr/lib/glibc");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let names = [
+        "libc.so.6", "libm.so.6", "libmvec.so.1", "libdl.so.2", "libpthread.so.0", "librt.so.1", "libresolv.so.2",
+        "libutil.so.1", "libanl.so.1", "libnss_files.so.2", "libnss_dns.so.2", "libstdc++.so.6", "libgcc_s.so.1",
+    ];
+    for name in names {
+        let src = lib.join(name);
+        if src.is_file() {
+            fs::copy(&src, dir.join(name)).map_err(|e| format!("{}: {e}", src.display()))?;
+        } else if ["libc.so.6", "libm.so.6", "libstdc++.so.6", "libgcc_s.so.1"].contains(&name) {
+            return Err(format!("{} is missing", src.display()));
+        }
+    }
+    let ld = lib.join(loader);
+    fs::copy(&ld, appdir.join("usr/bin").join(loader)).map_err(|e| format!("{}: {e}", ld.display()))?;
+    Ok(())
+}
+
 /// Linux: a .deb that uses the system's GTK, and an AppImage that carries its own (linuxdeploy's GTK plugin).
 fn package_linux(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
     let v = version();
@@ -596,6 +639,10 @@ fn package_linux(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
         let desk = build.join("com.samratdutta.rewrite.desktop");
         fs::write(&desk, desktop("rewrite")).map_err(|e| e.to_string())?;
         let machine = if env::consts::ARCH == "aarch64" { "aarch64" } else { "x86_64" };
+        let loader = if machine == "aarch64" { "ld-linux-aarch64.so.1" } else { "ld-linux-x86-64.so.2" };
+        let glibc = output(Command::new("getconf").arg("GNU_LIBC_VERSION"))?.trim().trim_start_matches("glibc ").to_string();
+        let apprun = build.join("AppRun");
+        fs::write(&apprun, linux_apprun(&glibc, loader)).map_err(|e| e.to_string())?;
         sh(Command::new(&linuxdeploy)
             .arg("--appdir")
             .arg(&appdir)
@@ -609,11 +656,18 @@ fn package_linux(exe: &Path, build: &Path, dist: &Path) -> Result<(), String> {
             }))
             .arg("--icon-filename")
             .arg("rewrite")
-            .arg("--output")
-            .arg("appimage")
+            .arg("--custom-apprun")
+            .arg(&apprun)
             .env("ARCH", machine)
-            .env("LDAI_OUTPUT", dist.join(format!("Rewrite-{v}-{machine}.AppImage")))
             .env("DEPLOY_GTK_VERSION", "4"))?;
+        bundle_glibc(&appdir, machine, loader)?;
+        // packed after the C library is in, so linuxdeploy never rewrites those files
+        let appimagetool = env::var("APPIMAGETOOL").unwrap_or_else(|_| "appimagetool".into());
+        sh(Command::new(&appimagetool)
+            .arg("--no-appstream")
+            .arg(&appdir)
+            .arg(dist.join(format!("Rewrite-{v}-{machine}.AppImage")))
+            .env("ARCH", machine))?;
     }
     say(&format!("installers are in {}", dist.display()));
     Ok(())
