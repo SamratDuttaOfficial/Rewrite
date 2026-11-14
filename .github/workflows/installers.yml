@@ -123,7 +123,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           docker run --rm -v "$PWD/dist/installers:/dist:ro" ubuntu:22.04 bash -ec '
-            apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xvfb xauth >/dev/null
+            # a desktop has the libraries AppImages leave to the system (fonts, X11, Wayland, OpenGL); GTK 3 pulls them in
+            apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xvfb xauth libgtk-3-0 libgl1 libegl1 libgbm1 >/dev/null
             cd /tmp && /dist/Rewrite-*-$(uname -m).AppImage --appimage-extract >/dev/null
             xvfb-run -a ./squashfs-root/AppRun --selftest /tmp/selftest.log || { cat /tmp/selftest.log; exit 1; }
             cat /tmp/selftest.log
