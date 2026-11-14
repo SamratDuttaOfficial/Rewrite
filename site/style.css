@@ -200,6 +200,15 @@ code, pre { font-family: "Cascadia Mono", Consolas, "SF Mono", monospace; font-s
 .tabpane img { border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 @media (max-width: 860px) { .tabpane.show { grid-template-columns: 1fr; } }
 
+/* "alternative to" pages */
+.shot { display: block; margin: 8px 0 56px; border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); height: auto; }
+.feats.vs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 36px; margin-top: 18px; }
+.feats.vs li:nth-last-child(2):nth-child(odd) { border-bottom: 0; }
+.feats.lacks li { font-weight: 400; color: var(--text-2); }
+.feats.lacks .ic { color: var(--text-3); width: 18px; height: 18px; }
+.vs-h { margin-top: 40px; }
+@media (max-width: 720px) { .feats.vs { grid-template-columns: 1fr; } .feats.vs li:nth-last-child(2):nth-child(odd) { border-bottom: 1px solid var(--line-2); } }
+
 /* find and replace dialog */
 .dialog { max-width: 620px; margin-top: 26px; border: 1px solid var(--line); border-radius: 8px; background: var(--page); box-shadow: var(--shadow); overflow: hidden; }
 .dialog .t .ic { width: 15px; height: 15px; margin-right: 8px; }
