@@ -557,7 +557,9 @@ exec "$here/usr/bin/{loader}" --library-path "$here/usr/lib/glibc:$here/usr/lib$
 }
 
 /// Copies the build machine's C library, its loader and the C++ runtime into the AppDir for systems with an
-/// older glibc (see `linux_apprun`). They must all come from one glibc version.
+/// older glibc (see `linux_apprun`). They must all come from one glibc version. Also the libraries linuxdeploy
+/// leaves to the system whose older versions lack symbols the bundled GTK and Pango use (fonts and text shaping,
+/// X11, Wayland). OpenGL, DRM and GBM still come from the system, as they must match its graphics drivers.
 fn bundle_glibc(appdir: &Path, machine: &str, loader: &str) -> Result<(), String> {
     let lib = PathBuf::from(format!("/lib/{machine}-linux-gnu"));
     let dir = appdir.join("usr/lib/glibc");
@@ -565,6 +567,9 @@ fn bundle_glibc(appdir: &Path, machine: &str, loader: &str) -> Result<(), String
     let names = [
         "libc.so.6", "libm.so.6", "libmvec.so.1", "libdl.so.2", "libpthread.so.0", "librt.so.1", "libresolv.so.2",
         "libutil.so.1", "libanl.so.1", "libnss_files.so.2", "libnss_dns.so.2", "libstdc++.so.6", "libgcc_s.so.1",
+        "libharfbuzz.so.0", "libfreetype.so.6", "libfontconfig.so.1", "libfribidi.so.0", "libexpat.so.1", "libz.so.1",
+        "libgmp.so.10", "libgpg-error.so.0", "libcom_err.so.2", "libX11.so.6", "libX11-xcb.so.1", "libxcb.so.1",
+        "libwayland-client.so.0",
     ];
     for name in names {
         let src = lib.join(name);
