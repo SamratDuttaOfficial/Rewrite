@@ -36,3 +36,13 @@ AGENTS.md
 
 # Promotion material (kept local)
 /promo/
+
+# More agent files (kept local only)
+CLAUDE.md
+GEMINI.md
+.claude/
+.cursor/
+.codex/
+.gemini/
+.windsurf/
+.aider*

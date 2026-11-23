@@ -1,0 +1,38 @@
+name: Bug report
+description: Something in Rewrite doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version and installer
+      description: For example "2.0.3, Rewrite-2.0.3-Windows-Setup.exe". Help > About shows the version.
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Windows 10/11 (x64)
+        - Windows 11 (ARM64)
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Debian / Ubuntu (.deb)
+        - Linux (AppImage, x86_64)
+        - Linux (AppImage, ARM64)
+        - Other (say which below)
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What happened
+      description: The steps that lead to the problem, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or error messages
+      description: On Windows, Event Viewer (Windows Logs > Application) may show an error for Rewrite.exe.

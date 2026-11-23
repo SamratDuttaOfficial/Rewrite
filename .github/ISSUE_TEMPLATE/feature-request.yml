@@ -1,0 +1,11 @@
+name: Feature request
+description: Suggest something Rewrite should do.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Rewrite to do?
+      description: Describe the problem it solves, or the kind of document you were working on.
+    validations:
+      required: true
