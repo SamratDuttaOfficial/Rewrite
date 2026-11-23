@@ -1,0 +1,40 @@
+{
+    "version": "2.0.3",
+    "description": "Rewrite text, fix grammar, and edit Word, LaTeX and PDF files.",
+    "homepage": "https://samratduttaofficial.github.io/Rewrite/",
+    "license": {
+        "identifier": "MIT with Commons Clause",
+        "url": "https://github.com/SamratDuttaOfficial/Rewrite/blob/main/LICENSE"
+    },
+    "notes": "Settings and downloaded data are kept in $env:USERPROFILE\\.rewrite.",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/SamratDuttaOfficial/Rewrite/releases/download/v2.0.3/Rewrite-2.0.3-Windows-Setup.exe",
+            "hash": "57066bdcac698ef9cb6ecd18b6e56be8d1a745be4a508e81ff3e2c491e41ad12"
+        },
+        "arm64": {
+            "url": "https://github.com/SamratDuttaOfficial/Rewrite/releases/download/v2.0.3/Rewrite-2.0.3-Windows-arm64-Setup.exe",
+            "hash": "c0feae8d69b0de73a7f037bf4f037546f69cfa3e229bebb7546db955ecb4d3b6"
+        }
+    },
+    "innosetup": true,
+    "shortcuts": [
+        [
+            "bin\\Rewrite.exe",
+            "Rewrite"
+        ]
+    ],
+    "checkver": {
+        "github": "https://github.com/SamratDuttaOfficial/Rewrite"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/SamratDuttaOfficial/Rewrite/releases/download/v$version/Rewrite-$version-Windows-Setup.exe"
+            },
+            "arm64": {
+                "url": "https://github.com/SamratDuttaOfficial/Rewrite/releases/download/v$version/Rewrite-$version-Windows-arm64-Setup.exe"
+            }
+        }
+    }
+}

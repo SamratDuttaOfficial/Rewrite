@@ -53,6 +53,9 @@ the website explains how to build one and send it in.
 | Debian / Ubuntu | `rewrite_2.0.3_amd64.deb`, `rewrite_2.0.3_arm64.deb` | `sudo apt install ./rewrite_2.0.3_amd64.deb` |
 | Other Linux | `Rewrite-2.0.3-x86_64.AppImage`, `Rewrite-2.0.3-aarch64.AppImage` | `chmod +x` it, then run it. |
 
+With [Scoop](https://scoop.sh) on Windows: `scoop bucket add rewrite https://github.com/SamratDuttaOfficial/Rewrite`, then
+`scoop install rewrite`.
+
 On first start, Rewrite offers a one-time download (about 400 MB) for its best suggestions. Skip it to run in Lite
 mode.
 
